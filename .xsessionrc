@@ -1,0 +1,19 @@
+#!/bin/sh
+
+[ -f ~/.Xresources ] && xrdb -merge ~/.Xresources
+
+# Set fonts
+xset +fp /home/martin/.fonts
+xset fp rehash
+
+# Disable bell
+xset -b
+
+# Faster trackpad acceleration
+xinput --set-prop 12 300 0.125
+
+# If running from tty1 start i3wm
+if [ "$(tty)" = "/dev/tty1" ]; then
+	exec i3
+	exit 0
+fi
