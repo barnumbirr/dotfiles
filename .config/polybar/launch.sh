@@ -7,6 +7,6 @@ killall -q polybar
 while pgrep -u $UID -x polybar >/dev/null; do sleep 1; done
 
 # -r flag reloads polybar on config change
-polybar example -r &
+polybar default -r &
 
 echo "Bars launched..."
