@@ -100,3 +100,5 @@ def format_icon_list(icon_list, icon_list_format='default'):
 
     else:
         raise ValueError("Unknown format name for the list of icons: ", icon_list_format)
+
+

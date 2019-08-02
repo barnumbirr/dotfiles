@@ -198,14 +198,12 @@ bindsym XF86AudioMute exec pactl set-sink-mute 0 toggle # mute sound
 # Screen brightness controls using light
 bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/amdgpu_bl0" -A 10
 bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/amdgpu_bl0" -U 10
-#bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/amdgpu_bl0" -A 10; notify-send "brightness up"
-#bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/amdgpu_bl0" -U 10; notify-send "brightness down"
 
 # dunst notification daemon
 exec --no-startup-id dunst -config ~/.config/dunst/dunstrc
 
 # Auto-rename workspaces (includes icons)
-exec_always --no-startup-id ~/.config/polybar/scripts/autoname_workspaces.py &
+exec_always --no-startup-id ~/.config/polybar/scripts/autoname_workspaces.py
 
 ### i3-gaps stuff ###
 
