@@ -1,9 +1,13 @@
 #!/bin/sh
 
+# Load Xresources
 [ -f ~/.Xresources ] && xrdb -merge ~/.Xresources
 
+# Use US International
+setxkbmap -layout us -variant intl
+
 # Set fonts
-xset +fp /home/martin/.fonts
+xset +fp ~/.fonts
 xset fp rehash
 
 # Disable bell
@@ -12,6 +16,7 @@ xset -b
 # Faster trackpad acceleration
 xinput --set-prop 12 300 0.125
 
+# Thunar mounts
 if [ -z "${DBUS_SESSION_BUS_ADDRESS-}" ] && type dbus-launch >/dev/null; then
     eval $(dbus-launch --sh-syntax --exit-with-session)
 fi

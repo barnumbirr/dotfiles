@@ -1,5 +1,13 @@
 ! codeschool.dark from https://terminal.sexy
 
+Xft.dpi:       96
+Xft.antialias: true
+Xft.hinting:   true
+Xft.rgba:      rgb
+Xft.autohint:  false
+Xft.hintstyle: hintslight
+Xft.lcdfilter: lcddefault
+
 ! special
 *.foreground:   #9ea7a6
 *.background:   #232c31
@@ -36,11 +44,3 @@
 ! white
 *.color7:       #9ea7a6
 *.color15:      #b5d8f6
-
-Xft.dpi: 96
-Xft.autohint: 0
-Xft.lcdfilter: lcddefault
-Xft.hintstyle: hintslight
-Xft.hinting: true
-Xft.antialias: 1
-Xft.rgba: rgb
