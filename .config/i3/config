@@ -179,9 +179,13 @@ exec_always --no-startup-id ~/.config/polybar/scripts/autoname_workspaces.py
 for_window [class="Slack" floating] move container to workspace current
 
 # Pulse Audio controls
-bindsym XF86AudioRaiseVolume exec pactl set-sink-volume 0 +5% #increase sound volume
-bindsym XF86AudioLowerVolume exec pactl set-sink-volume 0 -5% #decrease sound volume
-bindsym XF86AudioMute exec pactl set-sink-mute 0 toggle # mute sound
+#bindsym XF86AudioRaiseVolume exec pactl set-sink-volume 1 +5% #increase sound volume
+#bindsym XF86AudioLowerVolume exec pactl set-sink-volume 1 -5% #decrease sound volume
+#bindsym XF86AudioMute exec pactl set-sink-mute 1 toggle # mute sound
+
+bindsym XF86AudioRaiseVolume exec amixer set Master 5%+ #increase sound volume
+bindsym XF86AudioLowerVolume exec amixer set Master 5%- #decrease sound volume
+bindsym XF86AudioMute exec amixer set Master toggle # mute sound
 
 # Screen brightness controls using light
 bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/amdgpu_bl0" -A 10
