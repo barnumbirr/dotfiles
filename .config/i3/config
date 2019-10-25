@@ -187,6 +187,10 @@ bindsym XF86AudioMute exec amixer set Master toggle # mute sound
 bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/amdgpu_bl0" -A 10
 bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/amdgpu_bl0" -U 10
 
+# Screenshots
+bindsym $mod+Print exec scrot -q 88 'screenshot-%d-%m-%Y_%H-%M-%S_$wx$h.png' -e 'mv $f ~/Pictures/Screenshots/'
+bindsym $mod+shift+Print exec gnome-screenshot -i
+
 # Launch betterlockscreen using wallpaper set by feh
 exec --no-startup-id source ~/.fehbg
 bindsym $mod+shift+x exec betterlockscreen -l dimblur
