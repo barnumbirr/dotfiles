@@ -26,3 +26,7 @@ if [ -d "$HOME/.local/bin" ] ; then
     PATH="$HOME/.local/bin:$PATH"
 fi
 
+# set PATH so it includes user's private sbin if it exists
+if [ -d "$HOME/.local/sbin" ] ; then
+    PATH="$HOME/.local/sin:$PATH"
+fi
