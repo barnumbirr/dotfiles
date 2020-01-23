@@ -12,7 +12,8 @@ esac
 stty -ixon
 
 # Infinite history.
-HISTSIZE= HISTFILESIZE=
+HISTSIZE=
+HISTFILESIZE=
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
@@ -43,13 +44,13 @@ fi
 # Colorful man pages
 man() {
     env \
-    LESS_TERMCAP_mb=$(printf "\e[1;31m") \
-    LESS_TERMCAP_md=$(printf "\e[1;31m") \
-    LESS_TERMCAP_me=$(printf "\e[0m") \
-    LESS_TERMCAP_se=$(printf "\e[0m") \
-    LESS_TERMCAP_so=$(printf "\e[1;44;33m") \
-    LESS_TERMCAP_ue=$(printf "\e[0m") \
-    LESS_TERMCAP_us=$(printf "\e[1;32m") \
+    LESS_TERMCAP_mb="$(printf "\e[1;31m")" \
+    LESS_TERMCAP_md="$(printf "\e[1;31m")" \
+    LESS_TERMCAP_me="$(printf "\e[0m")" \
+    LESS_TERMCAP_se="$(printf "\e[0m")" \
+    LESS_TERMCAP_so="$(printf "\e[1;44;33m")" \
+    LESS_TERMCAP_ue="$(printf "\e[0m")" \
+    LESS_TERMCAP_us="$(printf "\e[1;32m")" \
     man "$@"
 }
 
@@ -61,9 +62,9 @@ if ! shopt -oq posix; then
         . /usr/share/bash-completion/bash_completion
     elif [ -f /etc/bash_completion ]; then
         . /etc/bash_completion
-    elif [[ `uname` == 'Darwin' ]]; then
-        if [ -f $(brew --prefix)/etc/bash_completion ]; then
-            . $(brew --prefix)/etc/bash_completion
+    elif [[ $(uname) == 'Darwin' ]]; then
+        if [ -f "$(brew --prefix)"/etc/bash_completion ]; then
+            . "$(brew --prefix)"/etc/bash_completion
         fi
     fi
 fi
@@ -83,10 +84,10 @@ fi
 
 # Get current branch in Git repository
 function parse_git_branch() {
-    BRANCH=`git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`
+    BRANCH=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
     if [ ! "${BRANCH}" == "" ]
     then
-        STAT=`parse_git_dirty`
+        STAT=$(parse_git_dirty)
         echo " (${BRANCH}${STAT})"
     else
         echo ""
@@ -95,13 +96,13 @@ function parse_git_branch() {
 
 # Get current status of Git repository
 function parse_git_dirty {
-    status=`git status 2>&1 | tee`
-    dirty=`echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?"`
-    untracked=`echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?"`
-    ahead=`echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?"`
-    newfile=`echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?"`
-    renamed=`echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?"`
-    deleted=`echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?"`
+    status=$(git status 2>&1 | tee)
+    dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
+    untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
+    ahead=$(echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?")
+    newfile=$(echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?")
+    renamed=$(echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?")
+    deleted=$(echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?")
     bits=''
     if [ "${renamed}" == "0" ]; then
         bits=">${bits}"
@@ -131,14 +132,14 @@ function parse_git_dirty {
 # Start SSH Agent and add keys
 if [ -f ~/.ssh/agent.env ] ; then
     . ~/.ssh/agent.env > /dev/null
-    if ! kill -0 $SSH_AGENT_PID > /dev/null 2>&1; then
+    if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
         echo "Stale agent file found. Spawning new agent… "
-        eval `ssh-agent | tee ~/.ssh/agent.env`
-        eval $(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_oply)
+        eval "$(ssh-agent | tee ~/.ssh/agent.env)"
+        eval "$(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_oply)"
     fi
 else
     echo "Starting ssh-agent"
-    eval `ssh-agent | tee ~/.ssh/agent.env`
+    eval "$(ssh-agent | tee ~/.ssh/agent.env)"
     keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_oply
 fi
 
@@ -146,8 +147,8 @@ fi
 export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w\[$(parse_git_branch)]\\$ '
 
 # Set dircolors
-if [[ `uname` == 'Darwin' ]]; then
+if [[ $(uname) == 'Darwin' ]]; then
     export LSCOLORS=ExFxBxDxCxegedabagacad
-if [[ -f /usr/bin/dircolors && -f ~/.dircolors ]]; then
-    eval $(dircolors -b ~/.dircolors)
+elif [[ -f /usr/bin/dircolors && -f ~/.dircolors ]]; then
+    eval "$(dircolors -b ~/.dircolors)"
 fi
