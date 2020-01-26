@@ -170,7 +170,7 @@ exec --no-startup-id nm-applet
 exec --no-startup-id feh --bg-scale ~/Pictures/Wallpapers/space.png
 
 # Launch dunst notification daemon
-exec --no-startup-id dunst -config ~/.config/dunst/dunstr
+exec --no-startup-id dunst -config ~/.config/dunst/dunstrc
 
 # Auto-rename workspaces (includes icons)
 exec_always --no-startup-id ~/.config/polybar/scripts/autoname_workspaces.py
@@ -184,8 +184,8 @@ bindsym XF86AudioLowerVolume exec amixer set Master 5%- #decrease sound volume
 bindsym XF86AudioMute exec amixer set Master toggle # mute sound
 
 # Screen brightness controls using light
-bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/amdgpu_bl0" -A 10
-bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/amdgpu_bl0" -U 10
+bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/auto" -A 5
+bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/auto" -U 5
 
 # Screenshots
 bindsym $mod+Print exec scrot -q 88 'screenshot-%d-%m-%Y_%H-%M-%S_$wx$h.png' -e 'mv $f ~/Pictures/Screenshots/'
