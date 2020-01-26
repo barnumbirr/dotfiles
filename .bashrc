@@ -144,7 +144,7 @@ else
 fi
 
 # Beautiful command prompt.
-export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w\[$(parse_git_branch)]\\$ '
+export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w$(parse_git_branch)]\$ '
 
 # Set dircolors
 if [[ $(uname) == 'Darwin' ]]; then

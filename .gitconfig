@@ -1,0 +1,6 @@
+[includeIf "gitdir:~/Documents/work/repos/"]
+    path = .gitconfig-work
+[includeIf "gitdir:~/Documents/personal/"]
+    path = .gitconfig-personal
+[icdiff]
+    options = --highlight --line-numbers
