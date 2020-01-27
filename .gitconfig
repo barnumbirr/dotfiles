@@ -2,5 +2,11 @@
     path = .gitconfig-work
 [includeIf "gitdir:~/Documents/personal/"]
     path = .gitconfig-personal
+[diff]
+    tool = icdiff
+[difftool]
+    prompt = false
+[help]
+    autocorrect = 1
 [icdiff]
     options = --highlight --line-numbers
