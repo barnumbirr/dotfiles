@@ -129,6 +129,33 @@ function parse_git_dirty {
     fi
 }
 
+# Beautiful command prompt.
+export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w$(parse_git_branch)]\$ '
+
+# Set dircolors
+if [[ $(uname) == 'Darwin' ]]; then
+    export LSCOLORS=ExFxBxDxCxegedabagacad
+elif [[ -f /usr/bin/dircolors && -f ~/.dircolors ]]; then
+    eval "$(dircolors -b ~/.dircolors)"
+fi
+
+# OS independant ST3 CLI
+os_sublime ()
+{
+    OS="`uname`"
+    case $OS in
+        'Linux')
+            OS='Linux'
+            command subl "$@"
+            ;;
+        'WindowsNT')
+            OS='Windows'
+            command subl.exe "$@"
+            ;;
+        *) ;;
+    esac
+}
+
 # Start SSH Agent and add keys
 if [ -f ~/.ssh/agent.env ] ; then
     . ~/.ssh/agent.env > /dev/null
@@ -142,14 +169,3 @@ else
     eval "$(ssh-agent | tee ~/.ssh/agent.env)"
     keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_oply
 fi
-
-# Beautiful command prompt.
-export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w$(parse_git_branch)]\$ '
-
-# Set dircolors
-if [[ $(uname) == 'Darwin' ]]; then
-    export LSCOLORS=ExFxBxDxCxegedabagacad
-elif [[ -f /usr/bin/dircolors && -f ~/.dircolors ]]; then
-    eval "$(dircolors -b ~/.dircolors)"
-fi
-

@@ -99,6 +99,8 @@ WINDOW_ICONS = {
     'subl': fa.icons['file-alt'],
     'subl3': fa.icons['file-alt'],
     'sublime_text': fa.icons['file-alt'],
+    'microsoft teams - preview': fa.icons['users'],
+    'telegram-desktop': fa.icons['telegram'],
     'thunar': fa.icons['copy'],
     'thunderbird': fa.icons['envelope'],
     'totem': fa.icons['play'],
@@ -232,4 +234,3 @@ if __name__ == '__main__':
     i3.on('window', event_handler)
     i3.on('workspace::move', event_handler)
     i3.main()
-
