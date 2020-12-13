@@ -162,10 +162,10 @@ if [ -f ~/.ssh/agent.env ] ; then
     if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
         echo "Stale agent file found. Spawning new agent… "
         eval "$(ssh-agent | tee ~/.ssh/agent.env)"
-        eval "$(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_examotive)"
+        eval "$(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut ~/.ssh/id_hitec)"
     fi
 else
     echo "Starting ssh-agent"
     eval "$(ssh-agent | tee ~/.ssh/agent.env)"
-    keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_oply
+    eval "$(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut ~/.ssh/id_hitec)"
 fi
