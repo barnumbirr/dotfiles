@@ -1,0 +1,5 @@
+[user]
+  name = Martin Simon
+  email = martin@kosmonaut.lu
+  sshCommand = "ssh -i ~/.ssh/id_kosmonaut"
+  signingkey = 98763DC54A0266EF

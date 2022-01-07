@@ -1,3 +1,5 @@
 [user]
   name = Martin Simon
-  email = martin.simon@hitec.lu
+  email = martin.simon@teleclinic.com
+  sshCommand = "ssh -i ~/.ssh/id_teleclinic"
+  signingkey = 17B14A453E2EFAC0

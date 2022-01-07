@@ -1,7 +1,9 @@
-[includeIf "gitdir:~/Documents/work/repos/"]
-    path = .gitconfig-work
-[includeIf "gitdir:~/Documents/personal/"]
-    path = .gitconfig-personal
+[includeIf "gitdir:/mnt/c/Users/martin/code/personal/"]
+    path = ~/.gitconfig-personal
+[includeIf "gitdir:/mnt/c/Users/martin/code/kosmonaut/"]
+    path = ~/.gitconfig-kosmonaut
+[includeIf "gitdir:/mnt/c/Users/martin/code/work/"]
+    path = ~/.gitconfig-work
 [diff]
     tool = icdiff
 [difftool]
@@ -10,3 +12,11 @@
     autocorrect = 1
 [icdiff]
     options = --highlight --line-numbers
+[core]
+    pager = less
+[pull]
+    rebase = false
+[commit]
+    gpgsign = true
+[gpg]
+    program = gpg2

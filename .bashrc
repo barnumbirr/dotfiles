@@ -77,7 +77,7 @@ if [ -f ~/.bash_aliases ]; then
     . ~/.bash_aliases
 fi
 
-# If running in colole 1, start X display server
+# If running in console 1, start X display server
 if [[ ! $DISPLAY && $XDG_VTNR -eq 1 ]] ; then
     exec startx
 fi
@@ -139,33 +139,56 @@ elif [[ -f /usr/bin/dircolors && -f ~/.dircolors ]]; then
     eval "$(dircolors -b ~/.dircolors)"
 fi
 
-# OS independant ST3 CLI
-os_sublime ()
-{
-    OS="`uname`"
+# Cross-platform Sublime Text CLI
+st () {
+    OS=$(uname -a)
     case $OS in
-        'Linux')
+        Linux)
             OS='Linux'
             command subl "$@"
             ;;
-        'WindowsNT')
+        *microsoft*)
+            OS='Windows Subsystem for Linux (WSL)'
+            command /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
+            ;;
+        WindowsNT)
             OS='Windows'
-            command subl.exe "$@"
+            command /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
             ;;
         *) ;;
     esac
 }
 
+# Fix 'gpg: signing failed: Inappropriate ioctl for device'
+export GPG_TTY=$(tty)
+
 # Start SSH Agent and add keys
-if [ -f ~/.ssh/agent.env ] ; then
-    . ~/.ssh/agent.env > /dev/null
-    if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
-        echo "Stale agent file found. Spawning new agent… "
+if command -v keychain > /dev/null 2>&1; then
+    if [ -f ~/.ssh/agent.env ]; then
+        . ~/.ssh/agent.env > /dev/null
+        if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
+            echo "Stale agent file found. Spawning new agent… "
+            eval "$(ssh-agent | tee ~/.ssh/agent.env)"
+            eval "$(keychain --stop others --quiet --quick --eval\
+                    --agents gpg,ssh --inherit any --timeout 31622400\
+                    ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut\
+                    ~/.ssh/id_teleclinic 632C2AA6CF21205A 98763DC54A0266EF\
+                    17B14A453E2EFAC0)"
+        fi
+    else
+        echo "Starting ssh-agent"
         eval "$(ssh-agent | tee ~/.ssh/agent.env)"
-        eval "$(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut ~/.ssh/id_hitec)"
+        eval "$(keychain --stop others  --quiet --quick --eval --agents gpg,ssh\
+            --inherit any --timeout 31622400\
+            ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut ~/.ssh/id_teleclinic\
+            632C2AA6CF21205A 98763DC54A0266EF 17B14A453E2EFAC0)"
     fi
-else
-    echo "Starting ssh-agent"
-    eval "$(ssh-agent | tee ~/.ssh/agent.env)"
-    eval "$(keychain --eval --quiet --quick ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut ~/.ssh/id_hitec)"
+fi
+
+# WSL specific
+if [[ "$(< /proc/sys/kernel/osrelease)" == *microsoft* ]]; then
+    export LIBGL_ALWAYS_INDIRECT=1
+    export WSL_VERSION=$(wsl.exe -l -v | grep -a '[*]' | sed 's/[^0-9]*//g')
+    export WSL_HOST=$(tail -1 /etc/resolv.conf | cut -d' ' -f2)
+    export DISPLAY=$WSL_HOST:0
 fi
