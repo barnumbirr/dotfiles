@@ -194,13 +194,13 @@ if [[ "$(< /proc/sys/kernel/osrelease)" == *microsoft* ]]; then
     export DISPLAY=$WSL_HOST:0
 fi
 
-short() {
+0xff() {
     local SHORTENER_URL="https://0xff.tf"
     local SHORTENER_SECRET_KEY=""
 
     shorten=$(curl --silent --fail -X POST \
               -H "Authorization: ${SHORTENER_SECRET_KEY}"\
-              -H "URL: ${VAULT_URL}/${vault_key}" ${SHORTENER_URL}) || {
+              -H "URL: ${1}" ${SHORTENER_URL}) || {
         echo "ERROR: failed to shorten" >&2
         exit 1
     }
