@@ -150,6 +150,7 @@ st () {
         *microsoft*)
             OS='Windows Subsystem for Linux (WSL)'
             command /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
+            echo -ne "\033]0;Debian\a"
             ;;
         WindowsNT)
             OS='Windows'
@@ -192,3 +193,45 @@ if [[ "$(< /proc/sys/kernel/osrelease)" == *microsoft* ]]; then
     export WSL_HOST=$(tail -1 /etc/resolv.conf | cut -d' ' -f2)
     export DISPLAY=$WSL_HOST:0
 fi
+
+short() {
+    local SHORTENER_URL="https://0xff.tf"
+    local SHORTENER_SECRET_KEY=""
+
+    shorten=$(curl --silent --fail -X POST \
+              -H "Authorization: ${SHORTENER_SECRET_KEY}"\
+              -H "URL: ${VAULT_URL}/${vault_key}" ${SHORTENER_URL}) || {
+        echo "ERROR: failed to shorten" >&2
+        exit 1
+    }
+
+    short_url=$(jq -r .short <<< $shorten)
+
+    echo "${short_url}"
+}
+
+vault() {
+    local VAULT_URL="https://vault.tf"
+    local VAULT_SECRET_KEY=""
+    local SHORTENER_URL="https://0xff.tf"
+    local SHORTENER_SECRET_KEY=""
+
+    upload=$(curl --silent --fail --data-binary @${1:--}\
+         -H "Authorization: ${VAULT_SECRET_KEY}" ${VAULT_URL}/documents) || {
+        echo "ERROR: failed to paste" >&2
+        exit 1
+    }
+
+    vault_key=$(jq -r .key <<< $upload)
+
+    shorten=$(curl --silent --fail -X POST \
+              -H "Authorization: ${SHORTENER_SECRET_KEY}"\
+              -H "URL: ${VAULT_URL}/${vault_key}" ${SHORTENER_URL}) || {
+        echo "ERROR: failed to shorten" >&2
+        exit 1
+    }
+
+    short_url=$(jq -r .short <<< $shorten)
+
+    echo "${short_url}"
+}
