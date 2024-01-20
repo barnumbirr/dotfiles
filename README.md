@@ -19,8 +19,8 @@
 
 ```bash
 $ alias dots="git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME"
-$ dots init --bare "$HOME"/.dotfiles
-$ dots remote add origin https://github.com/barnumbirr/dotfiles.git
+$ git init --bare "$HOME"/.dotfiles
+$ dots remote add origin git@github.com:barnumbirr/dotfiles.git
 $ dots fetch
 $ dots reset --hard origin/master
 ```
@@ -28,29 +28,29 @@ $ dots reset --hard origin/master
 ## Configuration
 
 ```bash
-dots config status.showUntrackedFiles no
+$ dots config status.showUntrackedFiles no
 
 # Useful aliases
-dots config alias.untracked "status -u ."
-dots config alias.untracked-at "status -u"
+$ dots config alias.untracked "status -u ."
+$ dots config alias.untracked-at "status -u"
 ```
 
 ## Usage
 
 ```bash
 # Use the dots alias like you would use the git command
-dots status
-dots add --update ...
-dots commit -m "..."
-dots push
+$ dots status
+$ dots add --update ...
+$ dots commit -m "..."
+$ dots push
 
 # Listing files (not tracked by git)
-dots untracked
-dots status -u .config/
+$ dots untracked
+$ dots status -u .config/
 
 # Listing files (tracked by git)
-dots ls-files
-dots ls-files .config/polybar/
+$ dots ls-files
+$ dots ls-files .config/polybar/
 ```
 
 ## License
