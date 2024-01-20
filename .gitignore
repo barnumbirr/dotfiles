@@ -1,0 +1,25 @@
+*.tmp
+*.pyc
+*.o
+
+/.dotfiles
+/.local/bin
+/.local/share
+
+# unclutter untracked
+/.aws
+/.bash_history
+/.cache
+/.ccache
+/.config/.wrangler/
+/.docker
+/.gitconfig
+/.gnupg
+/.keychain
+/.lesshst
+/.mozilla
+/.npm
+/.ollama
+/.terraform.d
+/.vim*
+/.wrangler
