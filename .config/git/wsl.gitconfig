@@ -1,5 +1,7 @@
 [includeIf "gitdir:/mnt/c/Users/martin/code/personal/"]
   path = ~/.config/git/users/personal.gitconfig
+[includeIf "gitdir:~/.dotfiles"]
+  path = ~/.config/git/users/personal.gitconfig
 [includeIf "gitdir:/mnt/c/Users/martin/code/kosmonaut/"]
   path = ~/.config/git/users/kosmonaut.gitconfig
 [includeIf "gitdir:/mnt/c/Users/martin/code/work/"]
