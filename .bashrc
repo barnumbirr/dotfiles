@@ -1,4 +1,4 @@
-# ~/.bashrc: executed by bash(1) for non-login shells.
+# "$HOME"/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
@@ -59,28 +59,41 @@ man() {
 # sources /etc/bash.bashrc).
 if ! shopt -oq posix; then
     if [ -f /usr/share/bash-completion/bash_completion ]; then
-        . /usr/share/bash-completion/bash_completion
+        source /usr/share/bash-completion/bash_completion
     elif [ -f /etc/bash_completion ]; then
-        . /etc/bash_completion
+        source /etc/bash_completion
     elif [[ $(uname) == 'Darwin' ]]; then
         if [ -f "$(brew --prefix)"/etc/bash_completion ]; then
-            . "$(brew --prefix)"/etc/bash_completion
+            source "$(brew --prefix)"/etc/bash_completion
         fi
     fi
 fi
 
 # Alias definitions.
 # You may want to put all your additions into a separate file like
-# ~/.bash_aliases, instead of adding them here directly.
+# "$HOME"/.aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
+if [ -f "$HOME"/.aliases ]; then
+    source "$HOME"/.aliases
 fi
 
 # If running in console 1, start X display server
 if [[ ! $DISPLAY && $XDG_VTNR -eq 1 ]] ; then
     exec startx
 fi
+
+# Cross-platform .gitconfig
+OS=$(uname -a)
+case $OS in
+    Linux)
+        git config --global include.path "$HOME"/.config/git/linux.gitconfig
+        ;;
+    *microsoft*)
+        git config --global include.path "$HOME"/.config/git/wsl.gitconfig
+        ;;
+    *)
+        ;;
+esac
 
 # Get current branch in Git repository
 function parse_git_branch() {
@@ -135,8 +148,8 @@ export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w$(parse_git_branch)]\$ '
 # Set dircolors
 if [[ $(uname) == 'Darwin' ]]; then
     export LSCOLORS=ExFxBxDxCxegedabagacad
-elif [[ -f /usr/bin/dircolors && -f ~/.dircolors ]]; then
-    eval "$(dircolors -b ~/.dircolors)"
+elif [[ -f /usr/bin/dircolors && -f "$HOME"/.dircolors ]]; then
+    eval "$(dircolors -b "$HOME"/.dircolors)"
 fi
 
 # Cross-platform Sublime Text CLI
@@ -144,19 +157,17 @@ st () {
     OS=$(uname -a)
     case $OS in
         Linux)
-            OS='Linux'
-            command subl "$@"
+            /usr/bin/subl "$@"
             ;;
         *microsoft*)
-            OS='Windows Subsystem for Linux (WSL)'
-            command /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
-            echo -ne "\033]0;Debian\a"
+            # Push current window title to stack
+            echo -ne '\e[22t'
+            /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
+            # Revert to previous window title after the ssh command
+            echo -ne '\e[23t'
             ;;
-        WindowsNT)
-            OS='Windows'
-            command /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
+        *)
             ;;
-        *) ;;
     esac
 }
 
@@ -165,26 +176,32 @@ export GPG_TTY=$(tty)
 
 # Start SSH Agent and add keys
 if command -v keychain > /dev/null 2>&1; then
-    if [ -f ~/.ssh/agent.env ]; then
-        . ~/.ssh/agent.env > /dev/null
+    if [ -f "$HOME"/.ssh/agent.env ]; then
+        source "$HOME"/.ssh/agent.env > /dev/null
         if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
             echo "Stale agent file found. Spawning new agent… "
-            eval "$(ssh-agent | tee ~/.ssh/agent.env)"
+            eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
             eval "$(keychain --stop others --quiet --quick --eval\
                     --agents gpg,ssh --inherit any --timeout 31622400\
-                    ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut\
-                    ~/.ssh/id_teleclinic 632C2AA6CF21205A 98763DC54A0266EF\
-                    17B14A453E2EFAC0)"
+                    "$HOME"/.ssh/id_martinsimon "$HOME"/.ssh/id_kosmonaut "$HOME"/.ssh/id_doctena\
+                    632C2AA6CF21205A 98763DC54A0266EF EFCAAF15EC4016D0)"
         fi
     else
         echo "Starting ssh-agent"
-        eval "$(ssh-agent | tee ~/.ssh/agent.env)"
+        eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
         eval "$(keychain --stop others  --quiet --quick --eval --agents gpg,ssh\
             --inherit any --timeout 31622400\
-            ~/.ssh/id_martinsimon ~/.ssh/id_kosmonaut ~/.ssh/id_teleclinic\
+            "$HOME"/.ssh/id_martinsimon "$HOME"/.ssh/id_kosmonaut "$HOME"/.ssh/id_teleclinic\
             632C2AA6CF21205A 98763DC54A0266EF 17B14A453E2EFAC0)"
     fi
 fi
+
+# Reset the window title after SSH
+ssh() {
+    echo -ne '\e[22t'
+    /usr/bin/ssh "$@"
+    echo -ne '\e[23t'
+}
 
 # WSL specific
 if [[ "$(< /proc/sys/kernel/osrelease)" == *microsoft* ]]; then
@@ -194,44 +211,51 @@ if [[ "$(< /proc/sys/kernel/osrelease)" == *microsoft* ]]; then
     export DISPLAY=$WSL_HOST:0
 fi
 
+# Load ENV variables from file
+# https://stackoverflow.com/a/66118031
+set -a
+source <(cat "$HOME"/.env | sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g")
+set +a
+
+# Personal URL shortener
+# Source: https://github.com/barnumbirr/0xff
 0xff() {
     local SHORTENER_URL="https://0xff.tf"
-    local SHORTENER_SECRET_KEY=""
+    local SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
 
     shorten=$(curl --silent --fail -X POST \
               -H "Authorization: ${SHORTENER_SECRET_KEY}"\
               -H "URL: ${1}" ${SHORTENER_URL}) || {
         echo "ERROR: failed to shorten" >&2
-        exit 1
     }
 
-    short_url=$(jq -r .short <<< $shorten)
+    short_url=$(jq -r .short <<< "$shorten")
 
     echo "${short_url}"
 }
 
+# Personal pastebin-like service
+# Source https://github.com/barnumbirr/vault
 vault() {
     local VAULT_URL="https://vault.tf"
-    local VAULT_SECRET_KEY=""
+    local VAULT_SECRET_KEY=${ENV_VAULT_SECRET_KEY}
     local SHORTENER_URL="https://0xff.tf"
-    local SHORTENER_SECRET_KEY=""
+    local SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
 
-    upload=$(curl --silent --fail --data-binary @${1:--}\
+    upload=$(curl --silent --fail --data-binary @"${1:--}"\
          -H "Authorization: ${VAULT_SECRET_KEY}" ${VAULT_URL}/documents) || {
         echo "ERROR: failed to paste" >&2
-        exit 1
     }
 
-    vault_key=$(jq -r .key <<< $upload)
+    vault_key=$(jq -r .key <<< "$upload")
 
     shorten=$(curl --silent --fail -X POST \
               -H "Authorization: ${SHORTENER_SECRET_KEY}"\
               -H "URL: ${VAULT_URL}/${vault_key}" ${SHORTENER_URL}) || {
         echo "ERROR: failed to shorten" >&2
-        exit 1
     }
 
-    short_url=$(jq -r .short <<< $shorten)
+    short_url=$(jq -r .short <<< "$shorten")
 
     echo "${short_url}"
 }

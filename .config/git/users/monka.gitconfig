@@ -1,0 +1,6 @@
+[user]
+  name = Anonymous
+  email = <>
+
+[commit]
+  gpgsign = false

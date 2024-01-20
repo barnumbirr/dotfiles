@@ -1,0 +1,5 @@
+[user]
+  name = Martin Simon
+  email = martin.simon@doctena.com
+  sshCommand = "ssh -i ~/.ssh/id_doctena"
+  signingkey = EFCAAF15EC4016D0
