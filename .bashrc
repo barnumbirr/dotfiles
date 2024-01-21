@@ -77,6 +77,13 @@ if [ -f "$HOME"/.aliases ]; then
     source "$HOME"/.aliases
 fi
 
+# Allow for custom scripts to be ran
+if [ -d "$HOME"/bin ]; then
+    export XDG_BIN_HOME="$HOME"/bin
+    [[ ":$PATH:" != *"\"$HOME\"/bin"* ]] && PATH="\"$HOME\"/bin:${PATH}"
+    /usr/bin/chmod +x "$HOME"/bin/*
+fi
+
 # If running in console 1, start X display server
 if [[ ! $DISPLAY && $XDG_VTNR -eq 1 ]] ; then
     exec startx
@@ -96,7 +103,7 @@ case $OS in
 esac
 
 # Get current branch in Git repository
-function parse_git_branch() {
+parse_git_branch() {
     BRANCH=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
     if [ ! "${BRANCH}" == "" ]
     then
@@ -108,7 +115,7 @@ function parse_git_branch() {
 }
 
 # Get current status of Git repository
-function parse_git_dirty {
+parse_git_dirty() {
     status=$(git status 2>&1 | tee)
     dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
     untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
@@ -216,46 +223,3 @@ fi
 set -a
 source <(cat "$HOME"/.env | sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g")
 set +a
-
-# Personal URL shortener
-# Source: https://github.com/barnumbirr/0xff
-0xff() {
-    local SHORTENER_URL="https://0xff.tf"
-    local SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
-
-    shorten=$(curl --silent --fail -X POST \
-              -H "Authorization: ${SHORTENER_SECRET_KEY}"\
-              -H "URL: ${1}" ${SHORTENER_URL}) || {
-        echo "ERROR: failed to shorten" >&2
-    }
-
-    short_url=$(jq -r .short <<< "$shorten")
-
-    echo "${short_url}"
-}
-
-# Personal pastebin-like service
-# Source https://github.com/barnumbirr/vault
-vault() {
-    local VAULT_URL="https://vault.tf"
-    local VAULT_SECRET_KEY=${ENV_VAULT_SECRET_KEY}
-    local SHORTENER_URL="https://0xff.tf"
-    local SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
-
-    upload=$(curl --silent --fail --data-binary @"${1:--}"\
-         -H "Authorization: ${VAULT_SECRET_KEY}" ${VAULT_URL}/documents) || {
-        echo "ERROR: failed to paste" >&2
-    }
-
-    vault_key=$(jq -r .key <<< "$upload")
-
-    shorten=$(curl --silent --fail -X POST \
-              -H "Authorization: ${SHORTENER_SECRET_KEY}"\
-              -H "URL: ${VAULT_URL}/${vault_key}" ${SHORTENER_URL}) || {
-        echo "ERROR: failed to shorten" >&2
-    }
-
-    short_url=$(jq -r .short <<< "$shorten")
-
-    echo "${short_url}"
-}

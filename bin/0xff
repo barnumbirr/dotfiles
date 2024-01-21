@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# 0xff - shorten URLs
+# https://github.com/barnumbirr/0xff
+#
+
+[ $# -eq 0 ] && { echo "Usage: $0 <FILE_PATH>"; exit 1; }
+
+SHORTENER_URL="https://0xff.tf"
+SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
+
+RESPONSE=$(curl --silent --fail -X POST \
+          -H "Authorization: $SHORTENER_SECRET_KEY"\
+          -H "URL: $1" $SHORTENER_URL) || {
+    echo "ERROR: failed to shorten" >&2
+    exit 1
+}
+
+echo "$RESPONSE" | grep -o '"short":"[^"]*' | grep -o '[^"]*$'

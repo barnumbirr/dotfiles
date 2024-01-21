@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# vault - Pastebin-like service
+# https://github.com/barnumbirr/vault
+#
+
+[ $# -eq 0 ] && { echo "Usage: $0 <FILE_PATH>"; exit 1; }
+
+VAULT_URL="https://vault.tf"
+VAULT_SECRET_KEY=${ENV_VAULT_SECRET_KEY}
+
+RESPONSE=$(curl --silent --fail --data-binary @"${1:--}" \
+     -H "Authorization: $VAULT_SECRET_KEY" "$VAULT_URL/documents") || {
+    echo "ERROR: failed to paste" >&2
+    exit 1
+}
+
+VAULT_KEY=$(echo "$RESPONSE" | grep -o '"key":"[^"]*' | grep -o '[^"]*$')
+
+echo "$VAULT_URL"/"$VAULT_KEY"

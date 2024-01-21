@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# weather - Weather forecast
+# https://github.com/chubin/wttr.in
+#
+
+LOC="${1:-Luxembourg,Luxembourg}"
+
+curl -fGsS --compressed "v2.wttr.in/${LOC}"

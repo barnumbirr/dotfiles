@@ -1,0 +1,141 @@
+#!/bin/sh
+#
+# http - HTTP status code information
+#
+
+[ $# -eq 0 ] && { echo "Usage: $0 <HTTP_CODE>"; exit 1; }
+
+get_http_status_text() {
+  case $1 in
+    100) echo "Continue";;
+    101) echo "Switching Protocols";;
+    102) echo "Processing (WebDAV; RFC 2518)";;
+    103) echo "Early Hints (RFC 8297)";;
+    200) echo "OK";;
+    201) echo "Created";;
+    202) echo "Accepted";;
+    203) echo "Non-Authoritative Information (since HTTP/1.1)";;
+    204) echo "No Content";;
+    205) echo "Reset Content";;
+    206) echo "Partial Content";;
+    207) echo "Multi-Status (WebDAV; RFC 4918)";;
+    208) echo "Already Reported (WebDAV; RFC 5842)";;
+    226) echo "IM Used (RFC 3229)";;
+    300) echo "Multiple Choices";;
+    301) echo "Moved Permanently";;
+    302) echo "Found (Previously \"Moved temporarily\")";;
+    303) echo "See Other (since HTTP/1.1)";;
+    304) echo "Not Modified";;
+    305) echo "Use Proxy (since HTTP/1.1)";;
+    306) echo "Switch Proxy";;
+    307) echo "Temporary Redirect (since HTTP/1.1)";;
+    308) echo "Permanent Redirect";;
+    400) echo "Bad Request";;
+    401) echo "Unauthorized";;
+    402) echo "Payment Required";;
+    403) echo "Forbidden";;
+    404) echo "Not Found";;
+    405) echo "Method Not Allowed";;
+    406) echo "Not Acceptable";;
+    407) echo "Proxy Authentication Required";;
+    408) echo "Request Timeout";;
+    409) echo "Conflict";;
+    410) echo "Gone";;
+    411) echo "Length Required";;
+    412) echo "Precondition Failed";;
+    413) echo "Payload Too Large";;
+    414) echo "URI Too Long";;
+    415) echo "Unsupported Media Type";;
+    416) echo "Range Not Satisfiable";;
+    417) echo "Expectation Failed";;
+    418) echo "I'm a teapot (RFC 2324, RFC 7168)";;
+    421) echo "Misdirected Request";;
+    422) echo "Unprocessable Content";;
+    423) echo "Locked (WebDAV; RFC 4918)";;
+    424) echo "Failed Dependency (WebDAV; RFC 4918)";;
+    425) echo "Too Early (RFC 8470)";;
+    426) echo "Upgrade Required";;
+    428) echo "Precondition Required (RFC 6585)";;
+    429) echo "Too Many Requests (RFC 6585)";;
+    431) echo "Request Header Fields Too Large (RFC 6585)";;
+    451) echo "Unavailable For Legal Reasons (RFC 7725)";;
+    500) echo "Internal Server Error";;
+    501) echo "Not Implemented";;
+    502) echo "Bad Gateway";;
+    503) echo "Service Unavailable";;
+    504) echo "Gateway Timeout";;
+    505) echo "HTTP Version Not Supported";;
+    506) echo "Variant Also Negotiates (RFC 2295)";;
+    507) echo "Insufficient Storage (WebDAV; RFC 4918)";;
+    508) echo "Loop Detected (WebDAV; RFC 5842)";;
+    510) echo "Not Extended (RFC 2774)";;
+    511) echo "Network Authentication Required (RFC 6585)";;
+    # Unofficial codes
+    218) echo "This is fine (Apache HTTP Server)";;
+    419) echo "Page Expired (Laravel Framework)";;
+    420) echo "Method Failure (Spring Framework) or Enhance Your Calm (Twitter)";;
+    430) echo "Request Header Fields Too Large (Shopify) or Shopify Security Rejection (Shopify)";;
+    450) echo "Blocked by Windows Parental Controls (Microsoft)";;
+    498) echo "Invalid Token (Esri)";;
+    499) echo "Token Required (Esri)";;
+    509) echo "Bandwidth Limit Exceeded (Apache Web Server/cPanel)";;
+    529) echo "Site is overloaded";;
+    530) echo "Site is frozen or Origin DNS Error (Shopify)";;
+    540) echo "Temporarily Disabled (Shopify)";;
+    598) echo "(Informal convention) Network read timeout error";;
+    599) echo "Network Connect Timeout Error";;
+    783) echo "Unexpected Token (Shopify)";;
+    # Internet Information Services
+    440) echo "Login Time-out";;
+    449) echo "Retry With";;
+    451) echo "Redirect";;
+    # nginx
+    444) echo "No Response";;
+    494) echo "Request header too large";;
+    495) echo "SSL Certificate Error";;
+    496) echo "SSL Certificate Required";;
+    497) echo "HTTP Request Sent to HTTPS Port";;
+    499) echo "Client Closed Request";;
+    # Cloudflare
+    520) echo "Web Server Returned an Unknown Error";;
+    521) echo "Web Server Is Down";;
+    522) echo "Connection Timed Out";;
+    523) echo "Origin Is Unreachable";;
+    524) echo "A Timeout Occurred";;
+    525) echo "SSL Handshake Failed";;
+    526) echo "Invalid SSL Certificate";;
+    527) echo "Railgun Error";;
+    # AWS Elastic Load Balancing
+    000) echo "";;
+    460) echo "";;
+    463) echo "";;
+    464) echo "";;
+    561) echo "Unauthorized";;
+    # Caching warning codes (obsoleted)
+    110) echo "Response is Stale";;
+    111) echo "Revalidation Failed";;
+    112) echo "Disconnected Operation";;
+    113) echo "Heuristic Expiration";;
+    199) echo "Miscellaneous Warning";;
+    214) echo "Transformation Applied";;
+    299) echo "Miscellaneous Persistent Warning";;
+    *)   echo "Unknown HTTP Code";;
+  esac
+}
+
+get_wikipedia_link() {
+  echo "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#$1"
+}
+
+[ $# -eq 0 ] && { echo "Usage: $0 <FILE_PATH>"; exit 1; }
+
+HTTP_TEXT=$(get_http_status_text "$1")
+
+if [ "$HTTP_TEXT" = "Unknown HTTP Code" ]; then
+  echo "$HTTP_TEXT"
+  exit 1
+fi
+
+WIKIPEDIA_LINK=$(get_wikipedia_link "$1")
+
+echo "$1 $HTTP_TEXT - $WIKIPEDIA_LINK"
