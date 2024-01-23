@@ -1,9 +1,36 @@
 #!/bin/sh
 #
-# weather - Weather forecast
+# weather - weather forecast
 # https://github.com/chubin/wttr.in
 #
 
-LOC="${1:-Luxembourg,Luxembourg}"
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-h] [-l LOCATION]
 
-curl -fGsS --compressed "v2.wttr.in/${LOC}"
+  -l LOCATION  any location types (default: Luxembourg,Luxembourg)
+  -h           display this help message and exit
+EOF
+}
+
+while getopts ":hl:" opt; do
+  case $opt in
+    h)
+      usage
+      exit 0
+      ;;
+    l)
+      LOCATION="$OPTARG"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+curl -fGsS --compressed "wttr.in/${LOCATION:-Luxembourg,Luxembourg}?2nqmF"

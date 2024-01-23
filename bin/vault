@@ -4,7 +4,29 @@
 # https://github.com/barnumbirr/vault
 #
 
-[ $# -eq 0 ] && { echo "Usage: $0 <FILE_PATH>"; exit 1; }
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-h] FILE
+
+  FILE  path to file
+  -h    display this help message and exit
+EOF
+}
+
+while getopts ":h" opt; do
+  case $opt in
+    h)
+      usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+[ $# -eq 0 ] && { echo "Error: FILE is required"; exit 1; }
 
 VAULT_URL="https://vault.tf"
 VAULT_SECRET_KEY=${ENV_VAULT_SECRET_KEY}

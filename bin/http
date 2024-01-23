@@ -3,7 +3,27 @@
 # http - HTTP status code information
 #
 
-[ $# -eq 0 ] && { echo "Usage: $0 <HTTP_CODE>"; exit 1; }
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-h] CODE
+
+  CODE  get information about HTTP code
+  -h    display this help message and exit
+EOF
+}
+
+while getopts ":h" opt; do
+  case $opt in
+    h)
+      usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
 
 get_http_status_text() {
   case $1 in
@@ -127,7 +147,7 @@ get_wikipedia_link() {
   echo "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#$1"
 }
 
-[ $# -eq 0 ] && { echo "Usage: $0 <FILE_PATH>"; exit 1; }
+[ $# -eq 0 ] && { echo "Usage: $(basename "$0") <CODE>"; exit 1; }
 
 HTTP_TEXT=$(get_http_status_text "$1")
 

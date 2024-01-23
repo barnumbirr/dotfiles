@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# whatsmyip - Return public IP address
+# whatsmyip - return public IP address
 #
 
 curl -fGsS --compressed https://icanhazip.com/

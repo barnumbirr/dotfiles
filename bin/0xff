@@ -1,16 +1,38 @@
 #!/bin/sh
 #
-# 0xff - shorten URLs
+# 0xff - 0xff.tf CLI client
 # https://github.com/barnumbirr/0xff
 #
 
-[ $# -eq 0 ] && { echo "Usage: $0 <FILE_PATH>"; exit 1; }
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-h] URL
+
+  URL  URL to be shortened
+  -h   display this help message and exit
+EOF
+}
+
+while getopts ":h" opt; do
+  case $opt in
+    h)
+      usage
+      exit 0
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+[ $# -eq 0 ] && { echo "Error: URL is required"; exit 1; }
 
 SHORTENER_URL="https://0xff.tf"
 SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
 
 RESPONSE=$(curl --silent --fail -X POST \
-          -H "Authorization: $SHORTENER_SECRET_KEY"\
+          -H "Authorization: $SHORTENER_SECRET_KEY" \
           -H "URL: $1" $SHORTENER_URL) || {
     echo "ERROR: failed to shorten" >&2
     exit 1
