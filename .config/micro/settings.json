@@ -1,3 +1,19 @@
 {
-    "colorscheme": "monokai"
+    "autosu": true,
+    "clipboard": "internal",
+    "colorcolumn": 80,
+    "colorscheme": "monokai",
+    "diffgutter": true,
+    "fakecursor": false,
+    "initlua": true,
+    "mkparents": true,
+    "parsecursor": true,
+    "pluginchannels": [
+        "https://raw.githubusercontent.com/micro-editor/plugin-channel/master/channel.json",
+        "https://codeberg.org/micro-plugins/plugin-channel/raw/branch/main/channel.json"
+    ],
+    "pluginrepos": [],
+    "saveundo": true,
+    "tabhighlight": true,
+    "tabreverse": false
 }
