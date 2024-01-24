@@ -33,6 +33,9 @@ shopt -s autocd
 # match all files and zero or more directories and subdirectories.
 shopt -s globstar
 
+# Disable the bell
+if [[ $iatest > 0 ]]; then bind "set bell-style visible"; fi
+
 # make less more friendly for non-text input files, see lesspipe(1)
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
 
@@ -77,12 +80,9 @@ if [ -f "$HOME"/.aliases ]; then
     source "$HOME"/.aliases
 fi
 
-# Allow for custom scripts to be ran
-if [ -d "$HOME"/bin ]; then
-    export XDG_BIN_HOME="$HOME"/bin
-    [[ ":$PATH:" != *"\"$HOME\"/bin"* ]] && PATH="\"$HOME\"/bin:${PATH}"
-    /usr/bin/chmod +x "$HOME"/bin/*
-fi
+# Bash completion for `dots` alias
+_completion_loader git
+complete -o bashdefault -o default -o nospace -F __git_wrap__git_main dots
 
 # If running in console 1, start X display server
 if [[ ! $DISPLAY && $XDG_VTNR -eq 1 ]] ; then
@@ -190,7 +190,7 @@ if command -v keychain > /dev/null 2>&1; then
             eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
             eval "$(keychain --stop others --quiet --quick --eval\
                     --agents gpg,ssh --inherit any --timeout 31622400\
-                    "$HOME"/.ssh/id_martinsimon "$HOME"/.ssh/id_kosmonaut "$HOME"/.ssh/id_doctena\
+                    "$HOME/.ssh/id_martinsimon" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
                     632C2AA6CF21205A 98763DC54A0266EF EFCAAF15EC4016D0)"
         fi
     else
@@ -198,8 +198,8 @@ if command -v keychain > /dev/null 2>&1; then
         eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
         eval "$(keychain --stop others  --quiet --quick --eval --agents gpg,ssh\
             --inherit any --timeout 31622400\
-            "$HOME"/.ssh/id_martinsimon "$HOME"/.ssh/id_kosmonaut "$HOME"/.ssh/id_teleclinic\
-            632C2AA6CF21205A 98763DC54A0266EF 17B14A453E2EFAC0)"
+            "$HOME/.ssh/id_martinsimon" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
+            632C2AA6CF21205A 98763DC54A0266EF EFCAAF15EC4016D0)"
     fi
 fi
 
