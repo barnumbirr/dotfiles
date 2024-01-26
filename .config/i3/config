@@ -153,13 +153,13 @@ bindsym $mod+r mode "resize"
 exec_always --no-startup-id ~/.config/polybar/launch.sh
 
 # Launch Compton compositor (avoids screen tearing)
-exec --no-startup-id allow_rgb10_configs=false compton -b --config ~/.config/compton.conf
+exec --no-startup-id allow_rgb10_configs=false picom -b --config ~/.config/compton.conf
 
 # Launch network-manager applet
 exec --no-startup-id nm-applet
 
 # Launch feh to set background
-exec --no-startup-id feh --bg-scale ~/Pictures/Wallpapers/space.png
+exec --no-startup-id feh --no-fehbg --bg-scale ~/.wallpaper/space.png
 
 # Launch dunst notification daemon
 exec --no-startup-id dunst -config ~/.config/dunst/dunstrc

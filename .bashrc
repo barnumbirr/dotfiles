@@ -98,11 +98,11 @@ fi
 # Cross-platform .gitconfig
 OS=$(uname -a)
 case $OS in
-    Linux)
-        git config --global include.path "$HOME"/.config/git/linux.gitconfig
-        ;;
     *microsoft*)
         git config --global include.path "$HOME"/.config/git/wsl.gitconfig
+        ;;
+    Linux*)
+        git config --global include.path "$HOME"/.config/git/linux.gitconfig
         ;;
     *)
         ;;
@@ -167,11 +167,7 @@ fi
 
 # Cross-platform Sublime Text CLI
 st () {
-    OS=$(uname -a)
     case $OS in
-        Linux)
-            /usr/bin/subl "$@"
-            ;;
         *microsoft*)
             # CSI 22/23 don't seem to be supported in Windows Terminal 1.18.3181.0
             # Push current window title to stack
@@ -181,6 +177,9 @@ st () {
             #echo -ne '\e[23t'
             # Manually set title
             echo -ne "\033]0;Debian\a"
+            ;;
+        Linux*)
+            /usr/bin/subl "$@"
             ;;
         *)
             ;;

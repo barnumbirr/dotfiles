@@ -103,6 +103,7 @@ WINDOW_ICONS = {
     'telegram-desktop': fa.icons['telegram'],
     'thunar': fa.icons['copy'],
     'thunderbird': fa.icons['envelope'],
+    'thunderbird-default': fa.icons['envelope'],
     'totem': fa.icons['play'],
     'urxvt': fa.icons['terminal'],
     'xfce4-terminal': fa.icons['terminal'],
