@@ -44,6 +44,12 @@ if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
     debian_chroot=$(cat /etc/debian_chroot)
 fi
 
+# Make sure 256 color terminals are enabled
+case $TERM in "") TERM=xterm-256color;; esac
+
+# Set Micro editor true color support
+export MICRO_TRUECOLOR=1
+
 # Colorful man pages
 man() {
     env \
@@ -167,11 +173,14 @@ st () {
             /usr/bin/subl "$@"
             ;;
         *microsoft*)
+            # CSI 22/23 don't seem to be supported in Windows Terminal 1.18.3181.0
             # Push current window title to stack
-            echo -ne '\e[22t'
+            # echo -ne '\e[22t'
             /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
             # Revert to previous window title after the ssh command
-            echo -ne '\e[23t'
+            #echo -ne '\e[23t'
+            # Manually set title
+            echo -ne "\033]0;Debian\a"
             ;;
         *)
             ;;
