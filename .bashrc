@@ -104,8 +104,6 @@ case $OS in
     Linux*)
         git config --global include.path "$HOME"/.config/git/linux.gitconfig
         ;;
-    *)
-        ;;
 esac
 
 # Get current branch in Git repository
@@ -217,14 +215,6 @@ ssh() {
     /usr/bin/ssh "$@"
     echo -ne '\e[23t'
 }
-
-# WSL specific
-if [[ "$(< /proc/sys/kernel/osrelease)" == *microsoft* ]]; then
-    export LIBGL_ALWAYS_INDIRECT=1
-    export WSL_VERSION=$(wsl.exe -l -v | grep -a '[*]' | sed 's/[^0-9]*//g')
-    export WSL_HOST=$(tail -1 /etc/resolv.conf | cut -d' ' -f2)
-    export DISPLAY=$WSL_HOST:0
-fi
 
 # Load ENV variables from file
 # https://stackoverflow.com/a/66118031
