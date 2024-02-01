@@ -6,37 +6,54 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-h] FILE
+Usage: $(basename "${0}") [option] <file>
 
-  FILE  path to file
-  -h    display this help message and exit
+  -h, --help  display this help message and exit
 EOF
 }
 
-while getopts ":h" opt; do
-  case $opt in
-    h)
+vault() {
+  CURL=$(which curl)
+  VAULT_URL="https://vault.tf"
+  VAULT_SECRET_KEY="${ENV_VAULT_SECRET_KEY}"
+
+  RESPONSE=$("${CURL}" --silent --fail --data-binary @"${1:--}" \
+       -H "Authorization: $VAULT_SECRET_KEY" "$VAULT_URL/documents") || {
+      echo "ERROR: failed to paste" >&2
+      exit 1
+  }
+
+  VAULT_KEY=$(echo "$RESPONSE" | grep -o '"key":"[^"]*' | grep -o '[^"]*$')
+
+  echo "${VAULT_URL}"/"${VAULT_KEY}"
+
+  unset CURL
+  unset VAULT_URL
+  unset VAULT_KEY
+  unset VAULT_SECRET_KEY
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing argument"
+  echo "Try '$(basename "${0}") -h' for more information."
+  exit 1
+fi
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
       usage
       exit 0
       ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
       exit 1
       ;;
+    *)
+      vault "$@"
+      break
+      ;;
   esac
+  shift
 done
-
-[ $# -eq 0 ] && { echo "Error: FILE is required"; exit 1; }
-
-VAULT_URL="https://vault.tf"
-VAULT_SECRET_KEY=${ENV_VAULT_SECRET_KEY}
-
-RESPONSE=$(curl --silent --fail --data-binary @"${1:--}" \
-     -H "Authorization: $VAULT_SECRET_KEY" "$VAULT_URL/documents") || {
-    echo "ERROR: failed to paste" >&2
-    exit 1
-}
-
-VAULT_KEY=$(echo "$RESPONSE" | grep -o '"key":"[^"]*' | grep -o '[^"]*$')
-
-echo "$VAULT_URL"/"$VAULT_KEY"

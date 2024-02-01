@@ -6,36 +6,52 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-h] URL
+Usage: $(basename "${0}") [option] <url>
 
-  URL  URL to be shortened
-  -h   display this help message and exit
+  -h, --help  display this help message and exit
 EOF
 }
 
-while getopts ":h" opt; do
-  case $opt in
-    h)
+0xff() {
+  CURL=$(which curl)
+  SHORTENER_URL="https://0xff.tf"
+  SHORTENER_SECRET_KEY="${ENV_SHORTENER_SECRET_KEY}"
+
+  RESPONSE=$("${CURL}" --silent --fail -X POST \
+            -H "Authorization: ${SHORTENER_SECRET_KEY}" \
+            -H "URL: $1" ${SHORTENER_URL}) || {
+      echo "ERROR: failed to shorten" >&2
+      exit 1
+  }
+
+  echo "${RESPONSE}" | grep -o '"short":"[^"]*' | grep -o '[^"]*$'
+
+  unset CURL
+  unset RESPONSE
+  unset SHORTENER_URL
+  unset SHORTENER_SECRET_KEY
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing argument"
+  echo "Try '$(basename "${0}") -h' for more information."
+  exit 1
+fi
+
+while true; do
+  case "${1}" in
+    "-h"|"--help")
       usage
       exit 0
       ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
+    -?*)
+      echo "$(basename "${0}"): Invalid option $1"
+      echo "Try '$(basename "${0}") -h' for more information."
       exit 1
+      ;;
+    *)
+      0xff "${1}"
+      break
       ;;
   esac
 done
-
-[ $# -eq 0 ] && { echo "Error: URL is required"; exit 1; }
-
-SHORTENER_URL="https://0xff.tf"
-SHORTENER_SECRET_KEY=${ENV_SHORTENER_SECRET_KEY}
-
-RESPONSE=$(curl --silent --fail -X POST \
-          -H "Authorization: $SHORTENER_SECRET_KEY" \
-          -H "URL: $1" $SHORTENER_URL) || {
-    echo "ERROR: failed to shorten" >&2
-    exit 1
-}
-
-echo "$RESPONSE" | grep -o '"short":"[^"]*' | grep -o '[^"]*$'

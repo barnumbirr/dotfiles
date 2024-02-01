@@ -5,28 +5,14 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-h] CODE
+Usage: $(basename "${0}") [option] <code>
 
-  CODE  get information about HTTP code
-  -h    display this help message and exit
+  -h, --help  display this help message and exit
 EOF
 }
 
-while getopts ":h" opt; do
-  case $opt in
-    h)
-      usage
-      exit 0
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
-      exit 1
-      ;;
-  esac
-done
-
-get_http_status_text() {
-  case $1 in
+status_text() {
+  case "${1}" in
     100) echo "Continue";;
     101) echo "Switching Protocols";;
     102) echo "Processing (WebDAV; RFC 2518)";;
@@ -143,19 +129,49 @@ get_http_status_text() {
   esac
 }
 
-get_wikipedia_link() {
-  echo "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#$1"
+wiki_link() {
+  echo "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#${1}"
 }
 
-[ $# -eq 0 ] && { echo "Usage: $(basename "$0") <CODE>"; exit 1; }
+code() {
+  HTTP_TEXT=$(status_text "${1}")
 
-HTTP_TEXT=$(get_http_status_text "$1")
+  if [ "${HTTP_TEXT}" = "Unknown HTTP Code" ]; then
+    echo "${1} - ${HTTP_TEXT}"
+    exit 1
+  fi
 
-if [ "$HTTP_TEXT" = "Unknown HTTP Code" ]; then
-  echo "$HTTP_TEXT"
+  WIKIPEDIA_LINK=$(wiki_link "${1}")
+
+  echo "${1} ${HTTP_TEXT} - ${WIKIPEDIA_LINK}"
+
+  unset HTTP_TEXT
+  unset WIKIPEDIA_LINK
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing argument"
+  echo "Try '$(basename "${0}") -h' for more information."
   exit 1
 fi
 
-WIKIPEDIA_LINK=$(get_wikipedia_link "$1")
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
+      usage
+      exit 0
+      ;;
+    -?*)
+      echo "$(basename "${0}"): Invalid option $1"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+    *)
+      code "$@"
+      break
+      ;;
+  esac
+  shift
+done
 
-echo "$1 $HTTP_TEXT - $WIKIPEDIA_LINK"
+

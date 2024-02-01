@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# nfo - dead simple NFO viewer
+#
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [option] <file>
+
+  -h, --help  display this help message and exit
+EOF
+}
+
+nfo() {
+  ICONV=$(which iconv)
+
+  if [ -f "${1}" ]; then
+    if [ "$(echo "${1}" | rev | cut -d. -f1 | rev)" = "nfo" ]; then
+      "${ICONV}" -f cp437 "${1}"
+    else
+      echo "The file does not look like an NFO."
+      exit 1
+    fi
+  else
+    echo "The argument is not a file or does not exist."
+    exit 1
+  fi
+
+  unset ICONV
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing argument"
+  echo "Try '$(basename "${0}") -h' for more information."
+  exit 1
+fi
+
+while true; do
+  case "${1}" in
+    "-h"|"--help")
+      usage
+      exit 0
+      ;;
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+    *)
+      nfo "${1}"
+      break
+      ;;
+  esac
+done

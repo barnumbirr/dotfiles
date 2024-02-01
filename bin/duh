@@ -5,35 +5,42 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-h] [-d DIRECTORY] [-c COUNT]
+Usage: $(basename "$0") [option]
 
-  -d DIRECTORY  set working directory (default: \$PWD)
-  -n NUMBER     return number of lines (default: 20)
-  -h            display this help message and exit
+  -d  set working directory (default: \$PWD)
+  -n  return number of lines (default: 20)
+
+  -h  display this help message and exit
 EOF
 }
 
-while getopts ":hd:n:" opt; do
-  case $opt in
-    h)
+duh() {
+  du -ah 2> "$(mktemp)" "${DIRECTORY:-.}" | grep -v 'Permission denied' | sort -rh | head -n "${NUMBER:-20}"
+}
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
       usage
       exit 0
       ;;
-    d)
-      DIRECTORY="$OPTARG"
+    "-d"|"--directory")
+      DIRECTORY="${2-}"
+      shift
       ;;
-    n)
-      NUMBER="$OPTARG"
+    "-n"|"--number")
+      NUMBER="${2-}"
+      shift
       ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
+    -?*)
+      echo "$(basename "${0}"): Invalid option $1"
+      echo "Try '$(basename "${0}") -h' for more information."
       exit 1
       ;;
-    :)
-      echo "Option -$OPTARG requires an argument." >&2
-      exit 1
+    *)
+      duh "$@"
+      break
       ;;
   esac
+  shift
 done
-
-du -ah 2> "$(mktemp)" "${DIRECTORY:-.}" | grep -v 'Permission denied' | sort -rh | head -n "${NUMBER:-20}"

@@ -6,31 +6,47 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-h] [-l LOCATION]
+Usage: $(basename "${0}") [option]
 
-  -l LOCATION  any location types (default: Luxembourg,Luxembourg)
-  -h           display this help message and exit
+  -l, --location  return weather for location (default: Luxembourg,Luxembourg)
+
+  -h, --help      display this help message and exit
 EOF
 }
 
-while getopts ":hl:" opt; do
-  case $opt in
-    h)
+query() {
+  CURL=$(which curl)
+
+  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://wttr.in/${LOCATION:-Luxembourg,Luxembourg}?2nqmF); then
+    echo "$(basename "${0}"): check your internet connection and try again"
+    exit 1
+  fi
+
+  echo "${RESPONSE}"
+
+  unset CURL
+  unset RESPONSE
+}
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
       usage
       exit 0
       ;;
-    l)
-      LOCATION="$OPTARG"
+    "-l"|"--location")
+      LOCATION="${2-}"
+      shift
       ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
       exit 1
       ;;
-    :)
-      echo "Option -$OPTARG requires an argument." >&2
-      exit 1
+    *)
+      query "$@"
+      exit 0
       ;;
   esac
+  shift
 done
-
-curl -fGsS --compressed "wttr.in/${LOCATION:-Luxembourg,Luxembourg}?2nqmF"

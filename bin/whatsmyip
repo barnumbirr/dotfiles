@@ -1,6 +1,68 @@
 #!/bin/sh
 #
-# whatsmyip - return public IP address
+# whatsmyip - return public IPv[4|6] address
 #
 
-curl -fGsS --compressed https://icanhazip.com/
+# TODO:
+# - add -s/--strip option to allow for removal of newline `\n` from output
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [option]
+
+  -4, --IPv4   return public IPv4 if present
+  -6, --IPv6   return public IPv6 if present
+  -a, --all    return both IPv4 and IPv6 if present
+
+  -h, --help   display this help message and exit
+EOF
+}
+
+query() {
+  CURL=$(which curl)
+
+  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://"${PROTO:-ipv4}".icanhazip.com/); then
+    echo "$(basename "${0}"): check your internet connection and try again"
+    exit 1
+  fi
+
+  echo "${RESPONSE}"
+
+  unset CURL
+  unset RESPONSE
+}
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
+      usage
+      exit 0
+      ;;
+    "-4"|"--IPv4")
+      PROTO="ipv4"
+      query
+      exit 0
+      ;;
+    "-6"|"--IPv6")
+      PROTO="ipv6"
+      query
+      exit 0
+      ;;
+    "-a"|"--all")
+      PROTO="ipv4"
+      query
+      PROTO="ipv6"
+      query
+      exit 0
+      ;;
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+    *)
+      query
+      exit 0
+      ;;
+  esac
+done
