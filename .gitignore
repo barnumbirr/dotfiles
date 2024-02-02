@@ -11,8 +11,14 @@
 /.bash_history
 /.cache
 /.ccache
+/.config/cmus/
+/.config/micro/buffers
+.config/micro/init.lua
+/.config/neofetch/
+/.config/pulse/
 /.config/.wrangler/
 /.docker
+/.env
 /.gitconfig
 /.gnupg
 /.keychain
@@ -20,6 +26,8 @@
 /.mozilla
 /.npm
 /.ollama
+/.ssh
 /.terraform.d
 /.vim*
+/.wget-hsts
 /.wrangler
