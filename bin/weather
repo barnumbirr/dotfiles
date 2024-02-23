@@ -18,7 +18,7 @@ query() {
   CURL=$(which curl)
 
   if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://wttr.in/${LOCATION:-Luxembourg,Luxembourg}?2nqmF); then
-    echo "$(basename "${0}"): check your internet connection and try again"
+    echo "$(basename "${0}"): An error occured, please try again"
     exit 1
   fi
 

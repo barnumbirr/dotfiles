@@ -34,7 +34,8 @@ shopt -s autocd
 shopt -s globstar
 
 # Disable the bell
-if [[ $iatest > 0 ]]; then bind "set bell-style visible"; fi
+iatest=$(expr index "$-" i)
+if [[ "$iatest" -gt 0 ]]; then bind "set bell-style visible"; fi
 
 # make less more friendly for non-text input files, see lesspipe(1)
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
@@ -170,14 +171,14 @@ st () {
             # CSI 22/23 don't seem to be supported in Windows Terminal 1.18.3181.0
             # Push current window title to stack
             # echo -ne '\e[22t'
-            /mnt/c/Program\ Files/Sublime\ Text/subl.exe "$@"
+            /mnt/c/Program\ Files/Sublime\ Text/subl.exe "${@:-.}"
             # Revert to previous window title after the ssh command
             #echo -ne '\e[23t'
             # Manually set title
             echo -ne "\033]0;Debian\a"
             ;;
         Linux*)
-            /usr/bin/subl "$@"
+            /usr/bin/subl "${@:-.}"
             ;;
         *)
             ;;
@@ -214,6 +215,25 @@ ssh() {
     echo -ne '\e[22t'
     /usr/bin/ssh "$@"
     echo -ne '\e[23t'
+}
+
+pgen() {
+    < /dev/urandom tr -dc '[:graph:]' | head -c "${1:-24}"; echo
+}
+
+# Go up a specified number of directories (i.e. `up 4`)
+up () {
+    local d=""
+    limit=$1
+    for ((i=1 ; i <= limit ; i++))
+        do
+            d=$d/..
+        done
+    d=$(echo $d | sed 's/^\///')
+    if [ -z "$d" ]; then
+        d=..
+    fi
+    cd "$d" || return
 }
 
 # Load ENV variables from file

@@ -22,7 +22,7 @@ query() {
   CURL=$(which curl)
 
   if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://"${PROTO:-ipv4}".icanhazip.com/); then
-    echo "$(basename "${0}"): check your internet connection and try again"
+    echo "$(basename "${0}"): An error occured, please try again"
     exit 1
   fi
 
@@ -39,20 +39,16 @@ while true; do
       exit 0
       ;;
     "-4"|"--IPv4")
-      PROTO="ipv4"
-      query
+      PROTO="ipv4" query
       exit 0
       ;;
     "-6"|"--IPv6")
-      PROTO="ipv6"
-      query
+      PROTO="ipv6" query
       exit 0
       ;;
     "-a"|"--all")
-      PROTO="ipv4"
-      query
-      PROTO="ipv6"
-      query
+      PROTO="ipv4" query
+      PROTO="ipv6" query
       exit 0
       ;;
     -?*)

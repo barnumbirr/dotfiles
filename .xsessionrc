@@ -1,13 +1,13 @@
 #!/bin/sh
 
 # Load Xresources
-[ -f ~/.Xresources ] && xrdb -merge ~/.Xresources
+[ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"
 
 # Use US International
 setxkbmap -layout us -variant intl
 
 # Set fonts
-xset +fp ~/.fonts
+xset +fp "$HOME/.fonts"
 xset fp rehash
 
 # Disable bell
@@ -18,7 +18,7 @@ xinput --set-prop 12 300 0.125
 
 # Thunar mounts
 if [ -z "${DBUS_SESSION_BUS_ADDRESS-}" ] && type dbus-launch >/dev/null; then
-    eval $(dbus-launch --sh-syntax --exit-with-session)
+    eval "$(dbus-launch --sh-syntax --exit-with-session)"
 fi
 
 # If running from tty1 start i3wm
@@ -26,4 +26,3 @@ if [ "$(tty)" = "/dev/tty1" ]; then
     exec i3
     exit 0
 fi
-
