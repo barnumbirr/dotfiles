@@ -12,7 +12,7 @@ Usage: $(basename "${0}") [option] <url>
 EOF
 }
 
-0xff() {
+_0xff() {
   CURL=$(which curl)
   SHORTENER_URL="https://0xff.tf"
   SHORTENER_SECRET_KEY="${ENV_SHORTENER_SECRET_KEY}"
@@ -50,7 +50,7 @@ while true; do
       exit 1
       ;;
     *)
-      0xff "${1}"
+      _0xff "${1}"
       break
       ;;
   esac
