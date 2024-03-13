@@ -12,8 +12,9 @@
 /.cache
 /.ccache
 /.config/cmus/
+/.config/micro/backups
 /.config/micro/buffers
-.config/micro/init.lua
+/.config/micro/init.lua
 /.config/neofetch/
 /.config/pulse/
 /.config/.wrangler/
