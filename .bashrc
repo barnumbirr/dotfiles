@@ -197,16 +197,16 @@ if command -v keychain > /dev/null 2>&1; then
             eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
             eval "$(keychain --stop others --quiet --quick --eval\
                     --agents gpg,ssh --inherit any --timeout 31622400\
-                    "$HOME/.ssh/id_martinsimon" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
-                    632C2AA6CF21205A 98763DC54A0266EF EFCAAF15EC4016D0)"
+                    "$HOME/.ssh/id_martin@simon.tf" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
+                    D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
         fi
     else
         echo "Starting ssh-agent"
         eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
         eval "$(keychain --stop others  --quiet --quick --eval --agents gpg,ssh\
             --inherit any --timeout 31622400\
-            "$HOME/.ssh/id_martinsimon" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
-            632C2AA6CF21205A 98763DC54A0266EF EFCAAF15EC4016D0)"
+            "$HOME/.ssh/id_martin@simon.tf" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
+            D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
     fi
 fi
 

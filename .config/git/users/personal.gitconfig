@@ -1,5 +1,5 @@
 [user]
   name = Martin Simon
-  email = me@martinsimon.me
-  sshCommand = "ssh -i ~/.ssh/id_martinsimon"
-  signingkey = 632C2AA6CF21205A
+  email = martin@simon.tf
+  sshCommand = "ssh -i ~/.ssh/id_martin@simon.tf"
+  signingkey = D0132247B7A2BFC9
