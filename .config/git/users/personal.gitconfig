@@ -3,3 +3,7 @@
   email = martin@simon.tf
   sshCommand = "ssh -i ~/.ssh/id_martin@simon.tf"
   signingkey = D0132247B7A2BFC9
+[commit]
+  gpgsign = true
+[gpg]
+  program = gpg2

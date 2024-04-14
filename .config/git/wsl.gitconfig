@@ -20,9 +20,5 @@
   pager = less
 [pull]
   rebase = false
-[commit]
-  gpgsign = true
-[gpg]
-  program = gpg2
 [safe]
   directory = *

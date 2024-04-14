@@ -3,3 +3,8 @@
   email = martin.simon@doctena.com
   sshCommand = "ssh -i ~/.ssh/id_doctena"
   signingkey = EFCAAF15EC4016D0
+[commit]
+  gpgsign = true
+[gpg]
+  program = gpg2
+
