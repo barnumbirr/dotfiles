@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# gh-release - Get latest release version from Github repository
+# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c
+#
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [option] <username/repo>
+
+  -h, --help  display this help message and exit
+EOF
+}
+
+main() {
+  CURL=$(which curl)
+  VERSION=$("${CURL}" --silent "https://api.github.com/repos/${1}/releases/latest" |
+  grep -Po "(?<=\"tag_name\": \").*(?=\")")
+
+  if [ $? -eq 0 ]; then
+    echo "${VERSION} (https://github.com/${1})"
+  else
+    echo "An error occurred. Please try again."
+  fi
+
+  unset CURL
+  unset VERSION
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing argument"
+  echo "Try '$(basename "${0}") -h' for more information."
+  exit 1
+fi
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
+      usage
+      exit 0
+      ;;
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+    *)
+      main "${1}"
+      break
+      ;;
+  esac
+done

@@ -14,8 +14,11 @@ Usage: $(basename "$0") [option]
 EOF
 }
 
-duh() {
-  du -ah 2> "$(mktemp)" "${DIRECTORY:-.}" | grep -v 'Permission denied' | sort -rh | head -n "${NUMBER:-20}"
+main() {
+  du -ah 2> "$(mktemp)" "${DIRECTORY:-.}" |
+  grep -v 'Permission denied' |
+  sort -rh |
+  head -n "${NUMBER:-20}"
 }
 
 while true; do
@@ -38,7 +41,7 @@ while true; do
       exit 1
       ;;
     *)
-      duh "$@"
+      main "$@"
       break
       ;;
   esac

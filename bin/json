@@ -1,0 +1,10 @@
+#!/bin/sh
+#
+# json - Pretty-print JSON input.
+#
+
+PYTHON=$(which python)
+
+cat "$@" | "${PYTHON}" -m json.tool
+
+unset PYTHON

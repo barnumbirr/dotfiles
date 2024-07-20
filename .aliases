@@ -1,8 +1,20 @@
 alias dots="git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME"
 alias ls="ls -lah --color=auto"
+alias path='echo -e ${PATH//:/\\n}'
 
 # Scripts from "$HOME/bin"
 alias shorten="0xff"
 alias paste="vault"
 alias pb="vault"
 alias wttr="weather"
+
+# Set some defaults for tree if installed
+if command -v tree > /dev/null 2>&1; then
+    alias tree="tree -CAhF --dirsfirst"
+    # alias tree="tree -aC -I ".git" --dirsfirst "$@" | less -FRNX"
+fi
+
+# Set some defaults for nano if installed
+if command -v nano > /dev/null 2>&1; then
+    alias nano='nano --smarthome --multibuffer --const --autoindent'
+fi

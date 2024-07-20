@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# git-ssh-origin - HTTPS to SSH Git origin URLs
+#
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [option]
+
+  -h, --help  display this help message and exit
+EOF
+}
+
+main() {
+  ORIGINAL_URL=$(git remote get-url origin)
+
+  if [ "${ORIGINAL_URL#git@}" != "$ORIGINAL_URL" ]; then
+    echo "Already an SSH URL: $ORIGINAL_URL"
+    exit 0
+  fi
+
+  UPDATED_URL=$(echo "$ORIGINAL_URL" | sed 's/https:\/\//git@/' | sed 's/\//:/')
+
+  git remote set-url origin "$UPDATED_URL"
+
+  if [ $? -eq 0 ]; then
+    echo "Origin URL was updated"
+    echo "Original URL: $ORIGINAL_URL"
+    echo "Updated URL: $UPDATED_URL"
+  else
+    echo "Failed to update Git origin URL."
+    exit 1
+  fi
+}
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
+      usage
+      exit 0
+      ;;
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+    *)
+      main
+      break
+      ;;
+  esac
+done

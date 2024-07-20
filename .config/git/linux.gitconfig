@@ -1,13 +1,13 @@
-[includeIf "gitdir:~/code/personal/"]
-  path = ~/.config/git/users/personal.gitconfig
 [includeIf "gitdir:~/.dotfiles"]
   path = ~/.config/git/users/personal.gitconfig
 [includeIf "gitdir:~/code/kosmonaut/"]
   path = ~/.config/git/users/kosmonaut.gitconfig
-[includeIf "gitdir:~/code/work/"]
-  path = ~/.config/git/users/work.gitconfig
 [includeIf "gitdir:~/code/monka/"]
   path = ~/.config/git/users/monka.gitconfig
+[includeIf "gitdir:~/code/personal/"]
+  path = ~/.config/git/users/personal.gitconfig
+[includeIf "gitdir:~/code/work/"]
+  path = ~/.config/git/users/work.gitconfig
 [diff]
   tool = icdiff
 [difftool]

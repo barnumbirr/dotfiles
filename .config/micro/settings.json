@@ -5,7 +5,6 @@
     "colorscheme": "monokai",
     "diffgutter": true,
     "fakecursor": false,
-    "initlua": true,
     "mkparents": true,
     "parsecursor": true,
     "pluginchannels": [

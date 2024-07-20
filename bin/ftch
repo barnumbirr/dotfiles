@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# ftch - a simpler neofetch
+#
+
+printf '%s\n' """
+    ___      ${USER:-$(id -un)}@$(cat /etc/hostname)
+   (.. |     os:     $(. /etc/os-release; echo ${PRETTY_NAME})
+   (<> |     kernel: $(uname -r)
+  / __  \\    uptime: $(uptime | awk -F'( |,|:)+' '{d=h=m=0; if ($7=="min") m=$6; else\
+ {if ($7~/^day/) {d=$6;h=$8;m=$9} else {h=$6;m=$7}}} {print d+0"d "h+0"h "m+0"m"}')
+ ( /  \\ /|   pkgs:   $(dpkg --get-selections | wc -l 2>/dev/null || echo "0")
+_/\\ __)/_)   cpu:    $(awk -F'(: )+' '/^model name/{ print $2;exit }' /proc/cpuinfo)\
+ ($(awk '/^processor/ { N++} END { print N }' /proc/cpuinfo))
+\/-____\/    memory: $(free -m | awk 'NR==2{printf "%.0f / %.0fMiB\n", $3, $2}')
+             shell:  ${SHELL##*/}
+"""

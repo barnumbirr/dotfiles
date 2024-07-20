@@ -27,8 +27,10 @@
 /.mozilla
 /.npm
 /.ollama
+/.python_history
 /.ssh
 /.terraform.d
+/.todo
 /.vim*
 /.wget-hsts
 /.wrangler

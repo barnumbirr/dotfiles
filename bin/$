@@ -1,0 +1,7 @@
+#!/bin/bash -i
+#
+# $ - Allow myself to be a lazy mf
+# /bin/bash -i to load interactive shell with bashrc and aliases
+#
+
+"$@"

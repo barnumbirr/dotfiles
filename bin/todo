@@ -1,0 +1,82 @@
+#!/bin/sh
+
+# todo - a simple todo script
+# https://github.com/nuxshed/dotfiles/blob/main/bin/todo
+
+TODOFILE="$HOME"/.todo
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [command]
+
+  a, add                  add new task to todo
+  l, ls, list             list all tasks in todo
+  d, done                 mark task as done
+  r, rm, remove           remove task from todo
+  e, edit                 edit todo file in ${EDITOR}
+  +<pattern>, @<pattern>  search for <pattern> in todo
+
+  h, help                 display this help message and exit
+EOF
+}
+
+# Use local .todo file if 'loc' argument is passed
+[ "$1" = "loc" ] && TODOFILE=.todo && shift
+
+# Ensure the todo file is readable and exists
+[ ! -r "$TODOFILE" ] && touch "$TODOFILE"
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing command"
+  echo "Try '$(basename "${0}") help' for more information."
+  exit 1
+fi
+
+while true; do
+  case "${1-}" in
+    a | add)
+      [ "$2" ] || { echo "Error: Missing task description"; exit 1; }
+      printf '%s\n' "$2" >> "$TODOFILE"
+      exit ;;
+    l | ls | list)
+      if [ ! -s "$TODOFILE" ]; then
+        echo "No tasks in the todo list."
+      else
+        while read -r line; do
+          i=$((i+1))
+          printf "\033[0;32m%s.\033[0m %s\n" "$i" "$line"
+        done < "$TODOFILE"
+      fi
+      exit ;;
+    d | done)
+      [ "$2" ] || { echo "Error: Missing task number"; exit 1; }
+      sed -i "$2 d" "$TODOFILE"
+      exit ;;
+    r | rm | remove)
+      echo "Are you sure you want to remove all tasks? (y/n): \c"
+      read -r confirmation
+      case "$confirmation" in
+        y|Y)
+          rm "$TODOFILE"
+          echo "All tasks have been removed."
+          ;;
+        *)
+          echo "Operation cancelled."
+          ;;
+      esac
+      exit ;;
+    e | edit)
+      "${EDITOR}" "$TODOFILE"
+      exit ;;
+    +* | @*)
+      if grep -q "${1#?}" "$TODOFILE"; then
+        grep --color=auto -n -w "${1#?}" "$TODOFILE"
+      else
+        echo "No matches found for pattern: ${1#?}"
+      fi
+      exit ;;
+    h | help)
+      usage
+      exit ;;
+  esac
+done

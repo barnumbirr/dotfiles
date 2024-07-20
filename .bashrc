@@ -1,5 +1,5 @@
 # "$HOME"/.bashrc: executed by bash(1) for non-login shells.
-# see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
+# See /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
 # If not running interactively, don't do anything
@@ -11,15 +11,25 @@ esac
 # Disable ctrl-s and ctrl-q.
 stty -ixon
 
+# If missing, create empty history file
+if [[ -z ${HISTFILE+x} ]]; then
+    [[ ! -f "$HOME/.bash_history" ]] && touch "$HOME/.bash_history"
+else
+    [[ ! -f "$HISTFILE" ]] && touch "$HISTFILE"
+fi
+
 # Infinite history.
 HISTSIZE=
 HISTFILESIZE=
 
-# don't put duplicate lines or lines starting with space in the history.
+# Don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
 HISTCONTROL=ignoreboth
 
-# append to the history file, don't overwrite it
+# If we're disconnected, capture whatever is in history
+trap 'history -a' SIGHUP
+
+# Append to the history file, don't overwrite it
 shopt -s histappend
 
 # check the window size after each command and, if necessary,
@@ -33,14 +43,18 @@ shopt -s autocd
 # match all files and zero or more directories and subdirectories.
 shopt -s globstar
 
+# Perform spelling correction on directory names
+shopt -s cdspell
+shopt -s dirspell
+
 # Disable the bell
 iatest=$(expr index "$-" i)
 if [[ "$iatest" -gt 0 ]]; then bind "set bell-style visible"; fi
 
-# make less more friendly for non-text input files, see lesspipe(1)
+# Make less more friendly for non-text input files, see lesspipe(1)
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
 
-# set variable identifying the chroot you work in (used in the prompt below)
+# Set variable identifying the chroot you work in (used in the prompt below)
 if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
     debian_chroot=$(cat /etc/debian_chroot)
 fi
@@ -48,7 +62,24 @@ fi
 # Make sure 256 color terminals are enabled
 case $TERM in "") TERM=xterm-256color;; esac
 
-# Set Micro editor true color support
+# Flash the terminal until the user presses a key
+# Usage: long_running_command; flash
+# https://en.wikipedia.org/wiki/ANSI_escape_code#In_shell_scripting
+flash () {
+    while true; do
+        printf \\e[?5h;
+        sleep 0.2;
+        printf \\e[?5l;
+        read -r -s -n1 -t1 && break;
+    done;
+}
+
+# Set default editor
+E=$(which micro)
+export EDITOR="${E}"
+
+# Set micro editor true color support
+export COLORTERM=truecolor
 export MICRO_TRUECOLOR=1
 
 # Colorful man pages
@@ -64,7 +95,7 @@ man() {
     man "$@"
 }
 
-# enable programmable completion features (you don't need to enable
+# Enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
 if ! shopt -oq posix; then
@@ -98,59 +129,65 @@ fi
 
 # Cross-platform .gitconfig
 OS=$(uname -a)
-case $OS in
-    *microsoft*)
-        git config --global include.path "$HOME"/.config/git/wsl.gitconfig
-        ;;
-    Linux*)
-        git config --global include.path "$HOME"/.config/git/linux.gitconfig
-        ;;
-esac
+if command -v git > /dev/null 2>&1; then
+    case $OS in
+        *microsoft*)
+            git config --global include.path "$HOME"/.config/git/wsl.gitconfig
+            ;;
+        Linux*)
+            git config --global include.path "$HOME"/.config/git/linux.gitconfig
+            ;;
+    esac
+fi
 
 # Get current branch in Git repository
 parse_git_branch() {
-    BRANCH=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
-    if [ ! "${BRANCH}" == "" ]
-    then
-        STAT=$(parse_git_dirty)
-        echo " (${BRANCH}${STAT})"
-    else
-        echo ""
+    if command -v git > /dev/null 2>&1; then
+        BRANCH=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
+        if [ ! "${BRANCH}" == "" ]
+        then
+            STAT=$(parse_git_dirty)
+            echo " (${BRANCH}${STAT})"
+        else
+            echo ""
+        fi
     fi
 }
 
 # Get current status of Git repository
 parse_git_dirty() {
-    status=$(git status 2>&1 | tee)
-    dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
-    untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
-    ahead=$(echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?")
-    newfile=$(echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?")
-    renamed=$(echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?")
-    deleted=$(echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?")
-    bits=''
-    if [ "${renamed}" == "0" ]; then
-        bits=">${bits}"
-    fi
-    if [ "${ahead}" == "0" ]; then
-        bits="*${bits}"
-    fi
-    if [ "${newfile}" == "0" ]; then
-        bits="+${bits}"
-    fi
-    if [ "${untracked}" == "0" ]; then
-        bits="?${bits}"
-    fi
-    if [ "${deleted}" == "0" ]; then
-        bits="x${bits}"
-    fi
-    if [ "${dirty}" == "0" ]; then
-        bits="!${bits}"
-    fi
-    if [ ! "${bits}" == "" ]; then
-        echo " ${bits}"
-    else
-        echo ""
+    if command -v git > /dev/null 2>&1; then
+        status=$(git status 2>&1 | tee)
+        dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
+        untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
+        ahead=$(echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?")
+        newfile=$(echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?")
+        renamed=$(echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?")
+        deleted=$(echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?")
+        bits=''
+        if [ "${renamed}" == "0" ]; then
+            bits=">${bits}"
+        fi
+        if [ "${ahead}" == "0" ]; then
+            bits="*${bits}"
+        fi
+        if [ "${newfile}" == "0" ]; then
+            bits="+${bits}"
+        fi
+        if [ "${untracked}" == "0" ]; then
+            bits="?${bits}"
+        fi
+        if [ "${deleted}" == "0" ]; then
+            bits="x${bits}"
+        fi
+        if [ "${dirty}" == "0" ]; then
+            bits="!${bits}"
+        fi
+        if [ ! "${bits}" == "" ]; then
+            echo " ${bits}"
+        else
+            echo ""
+        fi
     fi
 }
 
@@ -203,7 +240,7 @@ if command -v keychain > /dev/null 2>&1; then
     else
         echo "Starting ssh-agent"
         eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
-        eval "$(keychain --stop others  --quiet --quick --eval --agents gpg,ssh\
+        eval "$(keychain --stop others --quiet --quick --eval --agents gpg,ssh\
             --inherit any --timeout 31622400\
             "$HOME/.ssh/id_martin@simon.tf" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_doctena"\
             D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
@@ -217,6 +254,7 @@ ssh() {
     echo -ne '\e[23t'
 }
 
+# Generate passwords
 pgen() {
     < /dev/urandom tr -dc '[:graph:]' | head -c "${1:-24}"; echo
 }
@@ -239,5 +277,5 @@ up () {
 # Load ENV variables from file
 # https://stackoverflow.com/a/66118031
 set -a
-source <(cat "$HOME"/.env | sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g")
+source <(sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g" "$HOME"/.env)
 set +a

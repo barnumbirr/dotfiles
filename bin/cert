@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# cert - Get certificate information for a given domain
+#
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [option] <domain>
+
+  -h, --help  display this help message and exit
+EOF
+}
+
+main() {
+  OPENSSL=$(which openssl)
+  RESULT=$(echo | "${OPENSSL}" s_client -showcerts -servername "${1}" -connect "${1}:443" 2>/dev/null)
+
+  if [ $? -eq 0 ]; then
+    echo "${RESULT}" | "${OPENSSL}" x509 -noout -text
+  else
+    echo "Error: Failed to retrieve certificate information for ${1}."
+    exit 1
+  fi
+
+  unset OPENSSL
+  unset RESULT
+}
+
+if [ "$#" -eq 0 ]; then
+  echo "$(basename "${0}"): missing argument"
+  echo "Try '$(basename "${0}") -h' for more information."
+  exit 1
+fi
+
+while true; do
+  case "${1-}" in
+    "-h"|"--help")
+      usage
+      exit 0
+      ;;
+    -?*)
+      echo "$(basename "${0}"): Invalid option ${1}"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+    *)
+      main "${1}"
+      break
+      ;;
+  esac
+done

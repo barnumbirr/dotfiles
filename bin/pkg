@@ -1,0 +1,170 @@
+#!/bin/sh
+#
+# pkg - APT magic
+#
+
+BACKUP_DIRECTORY="/var/backups/apt"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "${0}") [option] [command]
+
+  backup   save installed/marked packages, GPG keys and sources
+  files    list files installed to system from package
+  list     list all known packages matching one or more patterns
+  lock     lock package to currently installed version
+  restore  restore backup from <directory>
+  search   search for packages that own files corresponding to the given patterns
+  unlock   unlock previously locked package
+
+  -h, --help  display this help message and exit
+EOF
+}
+
+whoami() {
+  ID=$(which id)
+
+  if [ "$(${ID} -u)" -ne 0 ]; then
+    echo "$(basename "${0}"): Permission denied, please run as root."
+    exit 1
+  fi
+
+  unset ID
+}
+
+_mkdir() {
+  MKDIR=$(which mkdir)
+
+  if [ ! -d "${1}" ]; then
+    "${MKDIR}" -pv "${1}"
+  fi
+
+  echo "Directory ${1} already exists, skipping..."
+
+  unset MKDIR
+}
+
+backup() {
+  CP=$(which cp)
+  DPKG=$(which dpkg)
+  APTMARK=$(which apt-mark)
+
+  _mkdir "${1:-$BACKUP_DIRECTORY}"
+  "${CP}" -R /etc/apt/sources.list* "${1:-$BACKUP_DIRECTORY}/"
+  "${CP}" -R /usr/share/keyrings /etc/apt/keyrings "${1:-$BACKUP_DIRECTORY}"
+  "${DPKG}" --get-selections > "${1:-$BACKUP_DIRECTORY}/packages.txt"
+  "${APTMARK}" showauto > "${1:-$BACKUP_DIRECTORY}/marked.txt" 2>/dev/null
+
+  echo "Backup completed. Files saved to ${1:-$BACKUP_DIRECTORY}"
+
+  unset CP
+  unset DPKG
+  unset APTMARK
+}
+
+files() {
+  DPKGQUERY=$(which dpkg-query)
+
+  "${DPKGQUERY}" --listfiles "${1}"
+
+  unset DPKGQUERY
+}
+
+list() {
+  DPKGQUERY=$(which dpkg-query)
+
+  "${DPKGQUERY}" --list "${1}"
+
+  unset DPKGQUERY
+}
+
+lock() {
+  APTMARK=$(which apt-mark)
+
+  "${APTMARK}" hold "${1}"
+
+  unset APTMARK
+}
+
+restore() {
+  CP=$(which cp)
+  APTCACHE=$(which apt-cache)
+  DPKG=$(which dpkg)
+  XARGS=$(which xargs)
+  APTMARK=$(which apt-mark)
+
+  "${CP}" -R "${1}" /usr/share
+  "${CP}" -R "${1}" /etc/apt
+  "${APTCACHE}" dumpavail > /tmp/dumpavail.tmp && "${DPKG}" --merge-avail /tmp/dumpavail.tmp && rm /tmp/dumpavail.tmp
+  "${DPKG}" --clear-selections
+  "${DPKG}" --get-selections < "${1}"/packages.txt
+  "${XARGS}" "${APTMARK}" showauto < "${1}/marked.txt"
+
+  echo "Restore completed."
+
+  unset CP
+  unset APTCACHE
+  unset DPKG
+  unset XARGS
+  unset APTMARK
+}
+
+search() {
+  DPKGQUERY=$(which dpkg-query)
+
+  "${DPKGQUERY}" --search "${1}"
+
+  unset DPKGQUERY
+}
+
+unlock() {
+  APTMARK=$(which apt-mark)
+
+  "${APTMARK}" unhold "${1}"
+
+  unset APTMARK
+}
+
+while true; do
+  whoami
+  case "${1-}" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    backup)
+      backup "${2-}"
+      exit 0
+      ;;
+    files)
+      files "${2-}"
+      exit 0
+      ;;
+    list)
+      list "${2-}"
+      exit 0
+      ;;
+    lock)
+      lock "${2-}"
+      exit 0
+      ;;
+    restore)
+      restore "${2-}"
+      exit 0
+      ;;
+    search)
+      search "${2-}"
+      exit 0
+      ;;
+    unlock)
+      unlock "${2-}"
+      exit 0
+      ;;
+    *)
+      echo "$(basename "${0}"): missing operand"
+      echo "Try '$(basename "${0}") -h' for more information."
+      exit 1
+      ;;
+  esac
+  shift
+done

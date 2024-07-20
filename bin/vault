@@ -15,7 +15,7 @@ EOF
 vault() {
   CURL=$(which curl)
   VAULT_URL="https://vault.tf"
-  VAULT_SECRET_KEY="${ENV_VAULT_SECRET_KEY}"
+  VAULT_SECRET_KEY="${VAULT_SECRET_KEY}"
 
   RESPONSE=$("${CURL}" --silent --fail --data-binary @"${1:--}" \
        -H "Authorization: $VAULT_SECRET_KEY" "$VAULT_URL/documents") || {
