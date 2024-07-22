@@ -3,6 +3,7 @@
 		"Name": "filemanager",
 		"Description": "File manager for Micro",
 		"Tags": ["filetree", "filemanager", "file", "manager"],
+        "Website": "",
 		"Versions": [
 			{
 				"Version": "2.1.1",
@@ -30,6 +31,13 @@
 				"Url": "https://github.com/jakkunight/filemanager-plugin/archive/v3.5.0.zip",
 				"Require": {
 					"micro": ">=1.4.1"
+				}
+			},
+			{
+				"Version": "3.5.1",
+				"Url": "https://github.com/micro-editor/updated-plugins/releases/download/v1.0.0/filemanager-3.5.1.zip",
+				"Require": {
+						"micro": ">=2.0.0-1"
 				}
 			}
 		]

@@ -9,9 +9,12 @@
     "parsecursor": true,
     "pluginchannels": [
         "https://raw.githubusercontent.com/micro-editor/plugin-channel/master/channel.json",
-        "https://codeberg.org/micro-plugins/plugin-channel/raw/branch/main/channel.json"
+        "https://raw.githubusercontent.com/Neko-Box-Coder/unofficial-plugin-channel/stable/channel.json"
     ],
-    "pluginrepos": [],
+    "pluginrepos": [
+        "https://raw.githubusercontent.com/sparques/micro-quoter/master/repo.json",
+        "https://codeberg.org/micro-plugins/git-status/raw/branch/main/repo.json"
+    ],
     "saveundo": true,
     "tabhighlight": true,
     "tabreverse": false

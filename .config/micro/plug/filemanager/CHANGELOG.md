@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## 3.5.1 - 2023-05-16
+
+### Fixed
+
+- Some commands('rename','touch','mkdir') by [ryo-inagaki](https://github.com/micro-editor/updated-plugins/blob/master/filemanager-plugin/filemanager.lua)
+
+## 3.5.0 - 2023-04-23
+
+### Added
+
+- Adds persistence across multiple tabs when switching by [jakkunight](https://github.com/jakkunight/filemanager-plugin/blob/master/filemanager.lua)
+
 ## [3.4.0] - 2018-10-22
 
 ### Fixed

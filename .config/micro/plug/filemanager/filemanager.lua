@@ -1,4 +1,4 @@
-VERSION = "3.5.0"
+VERSION = "3.5.1"
 
 local micro = import("micro")
 local display = import("micro/display")
@@ -218,10 +218,11 @@ end
 -- Joins the target dir's leading path to the passed name
 local function dirname_and_join(path, join_name)
 	-- The leading path to the dir we're in
-	local leading_path = DirectoryName(path)
+	local leading_path = filepath.Dir(path)
 	-- Joins with OS-specific slashes
 	return filepath.Join(leading_path, join_name)
 end
+
 
 -- Hightlights the line when you move the cursor up/down
 local function select_line(last_y)
@@ -670,17 +671,20 @@ end
 
 -- Prompts for a new name, then renames the file/dir at the cursor's position
 -- Not local so Micro can use it
-function rename_at_cursor(new_name)
+function rename_at_cursor(bp, args)
+
 	if micro.CurPane() ~= tree_view then
 		micro.InfoBar():Message("Rename only works with the cursor in the tree!")
 		return
 	end
 
 	-- Safety check they actually passed a name
-	if new_name == nil then
+	if #args < 1 then
 		micro.InfoBar():Error('When using "rename" you need to input a new name')
 		return
 	end
+
+	local new_name = args[1]
 
 	-- +1 since Go uses zero-based indices
 	local y = get_safe_y()
@@ -846,15 +850,82 @@ local function create_filedir(filedir_name, make_dir)
 end
 
 -- Triggered with "touch filename"
-function new_file(input_name)
+function new_file(bp, args)
+
+	-- Safety check they actually passed a name
+	if #args < 1 then
+		micro.InfoBar():Error('When using "touch" you need to input a file name')
+		return
+	end
+
+	local file_name = args[1]
+
 	-- False because not a dir
-	create_filedir(input_name, false)
+	create_filedir(file_name, false)
 end
 
 -- Triggered with "mkdir dirname"
-function new_dir(input_name)
+function new_dir(bp, args)
+
+	-- Safety check they actually passed a name
+	if #args < 1 then
+		micro.InfoBar():Error('When using "mkdir" you need to input a dir name')
+		return
+	end
+
+	local dir_name = args[1]
+
 	-- True because dir
-	create_filedir(input_name, true)
+	create_filedir(dir_name, true)
+end
+
+-- open_tree setup's the view
+local function open_tree()
+	-- Open a new Vsplit (on the very left)
+	micro.CurPane():VSplitIndex(buffer.NewBuffer("", "filemanager"), false)
+	-- Save the new view so we can access it later
+	tree_view = micro.CurPane()
+
+	-- Set the width of tree_view to 30% & lock it
+    tree_view:ResizePane(30)
+	-- Set the type to unsavable
+    -- tree_view.Buf.Type = buffer.BTLog
+    tree_view.Buf.Type.Scratch = true
+    tree_view.Buf.Type.Readonly = true
+
+	-- Set the various display settings, but only on our view (by using SetLocalOption instead of SetOption)
+	-- NOTE: Micro requires the true/false to be a string
+	-- Softwrap long strings (the file/dir paths)
+    tree_view.Buf:SetOptionNative("softwrap", true)
+    -- No line numbering
+    tree_view.Buf:SetOptionNative("ruler", false)
+    -- Is this needed with new non-savable settings from being "vtLog"?
+    tree_view.Buf:SetOptionNative("autosave", false)
+    -- Don't show the statusline to differentiate the view from normal views
+    tree_view.Buf:SetOptionNative("statusformatr", "")
+    tree_view.Buf:SetOptionNative("statusformatl", "filemanager")
+    tree_view.Buf:SetOptionNative("scrollbar", false)
+
+	-- Fill the scanlist, and then print its contents to tree_view
+	update_current_dir(os.Getwd())
+end
+
+-- close_tree will close the tree plugin view and release memory.
+local function close_tree()
+	if tree_view ~= nil then
+		tree_view:Quit()
+		tree_view = nil
+		clear_messenger()
+	end
+end
+
+-- toggle_tree will toggle the tree view visible (create) and hide (delete).
+function toggle_tree()
+	if tree_view == nil then
+		open_tree()
+	else
+		close_tree()
+	end
 end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
