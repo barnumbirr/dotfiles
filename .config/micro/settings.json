@@ -4,7 +4,6 @@
     "colorcolumn": 80,
     "colorscheme": "monokai",
     "diffgutter": true,
-    "fakecursor": false,
     "mkparents": true,
     "parsecursor": true,
     "pluginchannels": [

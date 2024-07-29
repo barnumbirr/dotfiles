@@ -3,7 +3,7 @@
 *.o
 
 /.dotfiles
-/.local/bin
+/.local/
 /.local/share
 
 # unclutter untracked
@@ -16,9 +16,15 @@
 /.config/micro/buffers
 /.config/micro/init.lua
 /.config/neofetch/
+/.config/obsidian/
 /.config/pulse/
+/.config/Slack/
+/.config/sublime-text/
+/.config/.vlc/
 /.config/.wrangler/
+/Desktop/
 /.docker
+/Downloads/
 /.env
 /.gitconfig
 /.gnupg
@@ -27,10 +33,12 @@
 /.mozilla
 /.npm
 /.ollama
+/.pki/
 /.python_history
 /.ssh
 /.terraform.d
 /.todo
+/.thunderbird/
 /.vim*
 /.wget-hsts
 /.wrangler
