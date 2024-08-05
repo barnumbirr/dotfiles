@@ -4,8 +4,8 @@
 # http://github.com/mitchweaver/bin/human
 #
 # Ex:
-#    6579057657 -> '6.1G'
-#    562952382  -> '536.8M'
+#    6579057657 -> '6.12G'
+#    562952382  -> '536.82M'
 #
 
 if [ ! "$1" ] ; then
@@ -14,21 +14,20 @@ if [ ! "$1" ] ; then
 fi
 
 if [ "$1" -gt 1099511627776 ] ; then
-  res=$(( $1 * 10 / 1099511627776 ))
-  pow=T
+  res=$(( $1 * 100 / 1099511627776 ))
+  pow=TiB
 elif [ "$1" -gt 1073741824 ] ; then
-  res=$(( $1 * 10 / 1073741824 ))
-  pow=G
+  res=$(( $1 * 100 / 1073741824 ))
+  pow=GiB
 elif [ "$1" -gt 1048576 ] ; then
-  res=$(( $1 * 10 / 1048576 ))
-  pow=M
+  res=$(( $1 * 100 / 1048576 ))
+  pow=MiB
 elif [ "$1" -gt 1024 ] ; then
-  res=$(( $1 * 10 / 1024 ))
-  pow=K
+  res=$(( $1 * 100 / 1024 ))
+  pow=KiB
 else
   printf '%sB\n' "${1:-0}"
   exit
 fi
 
-# shellcheck disable=SC2295
-printf "%s$pow\n" "${res%?}.${res#${res%?}}"
+printf "%d.%02d%s\n" "$((res / 100))" "$((res % 100))" "$pow"
