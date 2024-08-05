@@ -93,12 +93,12 @@ restore() {
   XARGS=$(which xargs)
   APTMARK=$(which apt-mark)
 
-  "${CP}" -R "${1}" /usr/share
-  "${CP}" -R "${1}" /etc/apt
+  "${CP}" -R "${1:-$BACKUP_DIRECTORY}" /usr/share
+  "${CP}" -R "${1:-$BACKUP_DIRECTORY}" /etc/apt
   "${APTCACHE}" dumpavail > /tmp/dumpavail.tmp && "${DPKG}" --merge-avail /tmp/dumpavail.tmp && rm /tmp/dumpavail.tmp
   "${DPKG}" --clear-selections
-  "${DPKG}" --get-selections < "${1}"/packages.txt
-  "${XARGS}" "${APTMARK}" showauto < "${1}/marked.txt"
+  "${DPKG}" --get-selections < "${1:-$BACKUP_DIRECTORY}"/packages.txt
+  "${XARGS}" "${APTMARK}" showauto < "${1:-$BACKUP_DIRECTORY}/marked.txt"
 
   echo "Restore completed."
 
