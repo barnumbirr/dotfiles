@@ -17,8 +17,10 @@ xset -b
 xinput --set-prop 12 300 0.125
 
 # Thunar mounts
-if [ -z "${DBUS_SESSION_BUS_ADDRESS-}" ] && type dbus-launch >/dev/null; then
-    eval "$(dbus-launch --sh-syntax --exit-with-session)"
+if command -v thunar > /dev/null 2>&1
+    if [ -z "${DBUS_SESSION_BUS_ADDRESS-}" ] && type dbus-launch >/dev/null; then
+        eval "$(dbus-launch --sh-syntax --exit-with-session)"
+    fi
 fi
 
 # If running from tty1 start i3wm
