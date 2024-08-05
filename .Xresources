@@ -1,4 +1,5 @@
-! codeschool.dark from https://terminal.sexy
+! monokai.dark from https://terminal.sexy
+! https://terminal.sexy/#Jygi-PjyJygi-SZypuIu9L91ZtnvroH_oe_k-PjydXFe-SZypuIu9L91ZtnvroH_oe_k-fj1
 
 Xft.dpi:       96
 Xft.antialias: true
@@ -9,38 +10,38 @@ Xft.hintstyle: hintslight
 Xft.lcdfilter: lcddefault
 
 ! special
-*.foreground:   #9ea7a6
-*.background:   #232c31
-*.cursorColor:  #9ea7a6
+*.foreground:   #f8f8f2
+*.background:   #272822
+*.cursorColor:  #f8f8f2
 
 ! black
-*.color0:       #232c31
-*.color8:       #3f4944
+*.color0:       #272822
+*.color8:       #75715e
 
 ! red
-*.color1:       #2a5491
-*.color9:       #2a5491
+*.color1:       #f92672
+*.color9:       #f92672
 
 ! green
-*.color2:       #237986
-*.color10:      #237986
+*.color2:       #a6e22e
+*.color10:      #a6e22e
 
 ! yellow
-*.color3:       #a03b1e
-*.color11:      #a03b1e
+*.color3:       #f4bf75
+*.color11:      #f4bf75
 
 ! blue
-*.color4:       #484d79
-*.color12:      #484d79
+*.color4:       #66d9ef
+*.color12:      #66d9ef
 
 ! magenta
-*.color5:       #c59820
-*.color13:      #c59820
+*.color5:       #ae81ff
+*.color13:      #ae81ff
 
 ! cyan
-*.color6:       #b02f30
-*.color14:      #b02f30
+*.color6:       #a1efe4
+*.color14:      #a1efe4
 
 ! white
-*.color7:       #9ea7a6
-*.color15:      #b5d8f6
+*.color7:       #f8f8f2
+*.color15:      #f9f8f5
