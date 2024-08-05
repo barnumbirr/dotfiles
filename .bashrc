@@ -23,6 +23,8 @@ HISTSIZE=
 HISTFILESIZE=
 
 # Don't put duplicate lines or lines starting with space in the history.
+# erasedups causes all previous lines matching the current line to be removed
+# from the history list before that line is saved.
 # See bash(1) for more options
 HISTCONTROL=ignoreboth
 
@@ -272,6 +274,22 @@ up () {
         d=..
     fi
     cd "$d" || return
+}
+
+# Move 'target' $1 to 'target.bak'
+bak() {
+    local target="${1%/}"
+    mv -v "$target" "$target.bak"
+}
+
+# Revert previously bak'd 'target'
+unbak() {
+    local target="${1%/}" # Remove trailing / if present
+    if [[ "$target" == *.bak ]]; then
+        mv -v "$target" "${target%.bak}"
+    else
+        echo "No .bak extension, ignoring '$target'"
+    fi
 }
 
 # Load ENV variables from file
