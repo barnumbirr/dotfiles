@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# zinstall - Painless Zig installation
+#
+# TODO
+# add -a/--arch ro specify ${ARCH}
+# add -v/--version to specify ${VERSION}
+# allow to download master ziglang
+#
+
+VERSION=0.13.0
+ARCH=x86_64
+
+download() {
+  WGET=$(which wget)
+
+  "${WGET}" https://ziglang.org/download/${VERSION}/zig-linux-${ARCH}-${VERSION}.tar.xz
+
+  unset WGET
+}
+
+install() {
+  TAR=$(which tar)
+  MV=$(which mv)
+  RM=$(which rm)
+
+  "${TAR}" xvf zig-linux-${ARCH}-${VERSION}.tar.xz
+  "${MV}" --verbose zig-linux-${ARCH}-${VERSION} /usr/local/zig
+  "${RM}" --verbose zig-linux-${ARCH}-${VERSION}.tar.xz
+
+  unset TAR
+  unset MV
+  unset RM
+}
+
+conftest() {
+  grep -qxF "export PATH=$PATH:/usr/local/zig" "$HOME/.profile" || \
+  echo "export PATH=$PATH:/usr/local/zig" >> "$HOME/.profile" && \
+  export PATH=$PATH:/usr/local/zig
+
+  zig help
+  zig version
+}
+
+main() {
+  download
+  install
+  conftest
+}
+
+main

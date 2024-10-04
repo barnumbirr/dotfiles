@@ -36,3 +36,5 @@ if [ -d "$HOME/.local/sbin" ]; then
     [[ ":$PATH:" != *"$HOME/.local/sbin"* ]] && PATH="$HOME/.local/sbin:${PATH}"
     /usr/bin/chmod -R +x "$HOME/.local/sbin"
 fi
+
+export PATH=$PATH:/usr/local/zig
