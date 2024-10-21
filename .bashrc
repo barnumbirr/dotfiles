@@ -294,6 +294,9 @@ unbak() {
 
 # Load ENV variables from file
 # https://stackoverflow.com/a/66118031
-set -a
-source <(sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g" "$HOME"/.env)
-set +a
+if [[ -f "$HOME/.env" ]]; then
+    set -a
+    #source <(sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g" "$HOME"/.env)
+    source <(grep -vE '^\s*#|^\s*$' "$HOME/.env" | sed "s/'/'\\\\''/g")
+    set +a
+fi
