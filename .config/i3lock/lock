@@ -19,14 +19,19 @@ fi
 
 WALLPAPER_DIR=$(dirname "$WALLPAPER")
 WALLPAPER_BASENAME=$(basename "$WALLPAPER")
-WALLPAPER_EXTENSION="${WALLPAPER_BASENAME##*.}"
 WALLPAPER_NAME="${WALLPAPER_BASENAME%.*}"
 
-BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred.$WALLPAPER_EXTENSION"
+SCREEN_RESOLUTION=$(xrandr | grep '*' | awk '{print $1}')
+if [ -z "$SCREEN_RESOLUTION" ]; then
+    echo "Unable to determine screen resolution."
+    exit 1
+fi
+
+BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred.png"
 
 if [ ! -f "$BLURRED_WALLPAPER" ]; then
     echo "Generating blurred wallpaper..."
-    ffmpeg -i "$WALLPAPER" -vf "gblur=sigma=$BLUR_SIGMA" "$BLURRED_WALLPAPER"
+    ffmpeg -i "$WALLPAPER" -vf "gblur=sigma=$BLUR_SIGMA,scale=$SCREEN_RESOLUTION" "$BLURRED_WALLPAPER"
 else
     echo "Blurred wallpaper already exists."
 fi
