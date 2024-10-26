@@ -183,9 +183,8 @@ bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/auto" -U 5
 bindsym $mod+Print exec scrot -q 88 'screenshot-%d-%m-%Y_%H-%M-%S_$wx$h.png' -e 'mv $f ~/Pictures/Screenshots/'
 bindsym $mod+shift+Print exec gnome-screenshot -i
 
-# Launch betterlockscreen using wallpaper set by feh
-#exec --no-startup-id source ~/.fehbg
-bindsym $mod+shift+x exec betterlockscreen -l dimblur --off 20
+# Custom lockscreen
+bindsym $mod+shift+x exec ~/.config/i3lock/lock
 
 for_window [class="Yad" title="yad-calendar"] floating enable
 

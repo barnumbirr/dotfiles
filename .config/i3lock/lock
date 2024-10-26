@@ -1,0 +1,36 @@
+#!/bin/bash
+
+I3_CONFIG="$HOME/.config/i3/config"
+BLUR_SIGMA=25
+SLEEP_TIMER=30
+WALLPAPER=$(grep -Eo 'feh .* --bg-(scale|fill|center) [^ ]+' "$I3_CONFIG" | awk '{print $NF}')
+
+if [ -z "$WALLPAPER" ]; then
+    echo "No wallpaper defined in i3 config."
+    exit 1
+fi
+
+WALLPAPER="${WALLPAPER/#\~/$HOME}"
+
+if [ ! -f "$WALLPAPER" ]; then
+    echo "Wallpaper file not found: $WALLPAPER"
+    exit 1
+fi
+
+WALLPAPER_DIR=$(dirname "$WALLPAPER")
+WALLPAPER_BASENAME=$(basename "$WALLPAPER")
+WALLPAPER_EXTENSION="${WALLPAPER_BASENAME##*.}"
+WALLPAPER_NAME="${WALLPAPER_BASENAME%.*}"
+
+BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred.$WALLPAPER_EXTENSION"
+
+if [ ! -f "$BLURRED_WALLPAPER" ]; then
+    echo "Generating blurred wallpaper..."
+    ffmpeg -i "$WALLPAPER" -vf "gblur=sigma=$BLUR_SIGMA" "$BLURRED_WALLPAPER"
+else
+    echo "Blurred wallpaper already exists."
+fi
+
+i3lock -i "$BLURRED_WALLPAPER" --ignore-empty-password --show-failed-attempts --pointer=win
+
+sleep $SLEEP_TIMER && pgrep i3lock && xset dpms force off
