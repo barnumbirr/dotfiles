@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# gh-branch-history - Per branch git history
+#
+
+pad_string() {
+  printf "%-${2}s" "$1"
+}
+
+if [ -d ".git" ]; then
+  GIT_DIR=".git"
+elif [ -d ".dotfiles" ]; then
+  GIT_DIR=".dotfiles"
+else
+  printf "fatal: not a git repository\n"
+  exit 1
+fi
+
+export GIT_DIR
+
+if [ "$(GIT_WORK_TREE="." git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+  data=$(git branch -r | grep -v HEAD | while read -r branch; do
+      commit_data=$(git show --format="%ci|%cr|%an" "$branch" | head -n 1)
+      commit_date=$(echo "$commit_data" | cut -d'|' -f1)
+      commit_rel_date=$(echo "$commit_data" | cut -d'|' -f2)
+      commit_author=$(echo "$commit_data" | cut -d'|' -f3)
+      commit_info=$(pad_string "$commit_date ($commit_rel_date)" 56)
+      author_info=$(pad_string "$commit_author" 25)
+      printf "%s%s%s\n" "$commit_info" "$author_info" "${branch##*/}"
+  done | sort -r)
+
+  printf "%-56s%-25s%-s\n" "Commit Date" "Commit Author" "Branch"
+  printf "%-56s%-25s%-s\n" "-----------" "-------------" "------"
+  printf "%s\n" "$data"
+else
+  printf "fatal: not a git repository\n"
+  exit 1
+fi

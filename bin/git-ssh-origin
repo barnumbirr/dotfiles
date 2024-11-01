@@ -5,14 +5,16 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option]
+Usage: $(basename "${0}") [options]
 
-  -h, --help  display this help message and exit
+  -V, --verbose    output debug information
+  -h, --help       display this help message and exit
 EOF
 }
 
 main() {
-  ORIGINAL_URL=$(git remote get-url origin)
+  GIT=$(command -v git)
+  ORIGINAL_URL=$(${GIT} remote get-url origin)
 
   if [ "${ORIGINAL_URL#git@}" != "$ORIGINAL_URL" ]; then
     echo "Already an SSH URL: $ORIGINAL_URL"
@@ -21,7 +23,7 @@ main() {
 
   UPDATED_URL=$(echo "$ORIGINAL_URL" | sed 's/https:\/\//git@/' | sed 's/\//:/')
 
-  git remote set-url origin "$UPDATED_URL"
+  ${GIT} remote set-url origin "$UPDATED_URL"
 
   if [ $? -eq 0 ]; then
     echo "Origin URL was updated"
@@ -31,22 +33,35 @@ main() {
     echo "Failed to update Git origin URL."
     exit 1
   fi
+
+  unset GIT
+  unset ORIGINAL_URL
+  unset UPDATED_URL
 }
 
-while true; do
-  case "${1-}" in
-    "-h"|"--help")
-      usage
-      exit 0
-      ;;
-    -?*)
-      echo "$(basename "${0}"): Invalid option ${1}"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-    *)
-      main
-      break
-      ;;
-  esac
-done
+parse_params() {
+  while true; do
+    case "${1-}" in
+      "-h"|"--help")
+        usage
+        exit 0
+        ;;
+      "-V"|"--verbose")
+        set -x
+        ;;
+      -?*)
+        echo "$(basename "${0}"): Invalid option ${1}"
+        echo "Try '$(basename "${0}") -h' for more information."
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  main "$@"
+}
+
+parse_params "$@"

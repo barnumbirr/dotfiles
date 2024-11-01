@@ -3,62 +3,79 @@
 # whatsmyip - return public IPv[4|6] address
 #
 
-# TODO:
-# - add -s/--strip option to allow for removal of newline `\n` from output
-
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option]
+Usage: $(basename "${0}") [options]
 
-  -4, --IPv4   return public IPv4 if present
-  -6, --IPv6   return public IPv6 if present
-  -a, --all    return both IPv4 and IPv6 if present
+  -4, --IPv4       return public IPv4 if present
+  -6, --IPv6       return public IPv6 if present
+  -a, --all        return both IPv4 and IPv6 if present
+  -s, --strip      remove newline from output
 
-  -h, --help   display this help message and exit
+  -V, --verbose    output debug information
+  -h, --help       display this help message and exit
 EOF
 }
 
 query() {
-  CURL=$(which curl)
+  CURL=$(command -v curl)
 
-  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://"${PROTO:-ipv4}".icanhazip.com/); then
-    echo "$(basename "${0}"): An error occured, please try again"
+  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://"${1}".icanhazip.com/); then
+    echo "$(basename "${0}"): An error occurred, please try again"
     exit 1
   fi
 
-  echo "${RESPONSE}"
+  if [ "${STRIP}" = "true" ]; then
+    echo -n "${RESPONSE}"
+  else
+    echo "${RESPONSE}"
+  fi
 
   unset CURL
   unset RESPONSE
 }
 
-while true; do
-  case "${1-}" in
-    "-h"|"--help")
-      usage
-      exit 0
-      ;;
-    "-4"|"--IPv4")
-      PROTO="ipv4" query
-      exit 0
-      ;;
-    "-6"|"--IPv6")
-      PROTO="ipv6" query
-      exit 0
-      ;;
-    "-a"|"--all")
-      PROTO="ipv4" query
-      PROTO="ipv6" query
-      exit 0
-      ;;
-    -?*)
-      echo "$(basename "${0}"): Invalid option ${1}"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-    *)
-      query
-      exit 0
-      ;;
-  esac
-done
+parse_params() {
+  while true; do
+    case "${1-}" in
+      "-h"|"--help")
+        usage
+        exit 0
+        ;;
+      "-4"|"--IPv4")
+        PROTO="ipv4"
+        ;;
+      "-6"|"--IPv6")
+        PROTO="ipv6"
+        ;;
+      "-a"|"--all")
+        ALL="true"
+        ;;
+      "-s"|"--strip")
+        STRIP="true"
+        ;;
+      "-V"|"--verbose")
+        set -x
+        ;;
+      -?*)
+        echo "$(basename "${0}"): Invalid option ${1}"
+        echo "Try '$(basename "${0}") -h' for more information."
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  if [ "${ALL}" = "true" ]; then
+    for PROTO in ipv4 ipv6; do
+      query "${PROTO}"
+    done
+  else
+    query "${PROTO:-ipv4}"
+  fi
+}
+
+parse_params "$@"

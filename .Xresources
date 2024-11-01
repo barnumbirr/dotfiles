@@ -1,6 +1,7 @@
 ! monokai.dark from https://terminal.sexy
 ! https://terminal.sexy/#Jygi-PjyJygi-SZypuIu9L91ZtnvroH_oe_k-PjydXFe-SZypuIu9L91ZtnvroH_oe_k-fj1
 
+! 100% scaling is typically 96dpi so 125% would be 120dpi and 150% would be 144dpi
 Xft.dpi:       96
 Xft.antialias: true
 Xft.hinting:   true

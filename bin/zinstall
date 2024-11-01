@@ -8,14 +8,13 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option]
+Usage: $(basename "${0}") [options]
 
-  -a, --arch     Specify architecture.
-  -v, --version  Specify version.
+  -a, --arch ARCHITECTURE    specify host architecture
+  -v, --version VERSION      specify Zig version to install
 
-  -V, --verbose  Output debug information.
-
-  -h, --help     Display this help message and exit.
+  -V, --verbose              output debug information
+  -h, --help                 display this help message and exit
 EOF
 }
 
@@ -23,7 +22,7 @@ VERSION=0.13.0
 ARCH=x86_64
 
 download() {
-  WGET=$(which wget)
+  WGET=$(command -v wget)
 
   "${WGET}" https://ziglang.org/download/${VERSION}/zig-linux-${ARCH}-${VERSION}.tar.xz
 
@@ -31,9 +30,9 @@ download() {
 }
 
 install() {
-  TAR=$(which tar)
-  MV=$(which mv)
-  RM=$(which rm)
+  TAR=$(command -v tar)
+  MV=$(command -v mv)
+  RM=$(command -v rm)
 
   "${TAR}" xvf zig-linux-${ARCH}-${VERSION}.tar.xz
   "${MV}" --verbose zig-linux-${ARCH}-${VERSION} /usr/local/zig
@@ -45,9 +44,15 @@ install() {
 }
 
 conftest() {
-  grep -qxF 'export PATH=$PATH:/usr/local/zig' "$HOME/.profile" || \
-  echo 'export PATH=$PATH:/usr/local/zig' >> "$HOME/.profile" && \
+  GREP=$(command -v grep)
+  ECHO=$(command -v echo)
+
+  "${GREP}" -qxF 'export PATH=$PATH:/usr/local/zig' "$HOME/.profile" || \
+  "${ECHO}" 'export PATH=$PATH:/usr/local/zig' >> "$HOME/.profile" && \
   export PATH=$PATH:/usr/local/zig
+
+  unset GREP
+  unset ECHO
 
   zig help
   zig version

@@ -6,16 +6,17 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option]
+Usage: $(basename "${0}") [options] LOCATION
 
-  -l, --location  return weather for location (default: Luxembourg,Luxembourg)
+  -l, --location LOCATION   return weather for location (default: Luxembourg,Luxembourg)
 
-  -h, --help      display this help message and exit
+  -V, --verbose             output debug information
+  -h, --help                display this help message and exit
 EOF
 }
 
 query() {
-  CURL=$(which curl)
+  CURL=$(command -v curl)
 
   if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://wttr.in/${LOCATION:-Luxembourg,Luxembourg}?2nqmF); then
     echo "$(basename "${0}"): An error occured, please try again"
@@ -28,25 +29,33 @@ query() {
   unset RESPONSE
 }
 
-while true; do
-  case "${1-}" in
-    "-h"|"--help")
-      usage
-      exit 0
-      ;;
-    "-l"|"--location")
-      LOCATION="${2-}"
-      shift
-      ;;
-    -?*)
-      echo "$(basename "${0}"): Invalid option ${1}"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-    *)
-      query "$@"
-      exit 0
-      ;;
-  esac
-  shift
-done
+parse_params() {
+  while true; do
+    case "${1-}" in
+      "-h"|"--help")
+        usage
+        exit 0
+        ;;
+      "-l"|"--location")
+        LOCATION="${2-}"
+        shift
+        ;;
+      "-V"|"--verbose")
+        set -x
+        ;;
+      -?*)
+        echo "$(basename "${0}"): Invalid option ${1}"
+        echo "Try '$(basename "${0}") -h' for more information."
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  query "$@"
+}
+
+parse_params "$@"

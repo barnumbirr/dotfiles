@@ -3,8 +3,6 @@
 # json - Pretty-print JSON input.
 #
 
-PYTHON=$(which python)
+PYTHON=$(command -v python)
 
 cat "$@" | "${PYTHON}" -m json.tool
-
-unset PYTHON

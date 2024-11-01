@@ -7,7 +7,7 @@ BACKUP_DIRECTORY="/var/backups/apt"
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option] [command]
+Usage: $(basename "${0}") [options] [command]
 
   backup   save installed/marked packages, GPG keys and sources
   files    list files installed to system from package
@@ -22,7 +22,7 @@ EOF
 }
 
 whoami() {
-  ID=$(which id)
+  ID=$(command -v id)
 
   if [ "$(${ID} -u)" -ne 0 ]; then
     echo "$(basename "${0}"): Permission denied, please run as root."
@@ -33,7 +33,7 @@ whoami() {
 }
 
 _mkdir() {
-  MKDIR=$(which mkdir)
+  MKDIR=$(command -v mkdir)
 
   if [ ! -d "${1}" ]; then
     "${MKDIR}" -pv "${1}"
@@ -45,9 +45,9 @@ _mkdir() {
 }
 
 backup() {
-  CP=$(which cp)
-  DPKG=$(which dpkg)
-  APTMARK=$(which apt-mark)
+  CP=$(command -v cp)
+  DPKG=$(command -v dpkg)
+  APTMARK=$(command -v apt-mark)
 
   _mkdir "${1:-$BACKUP_DIRECTORY}"
   "${CP}" -R /etc/apt/sources.list* "${1:-$BACKUP_DIRECTORY}/"
@@ -63,7 +63,7 @@ backup() {
 }
 
 files() {
-  DPKGQUERY=$(which dpkg-query)
+  DPKGQUERY=$(command -v dpkg-query)
 
   "${DPKGQUERY}" --listfiles "${1}"
 
@@ -71,7 +71,7 @@ files() {
 }
 
 list() {
-  DPKGQUERY=$(which dpkg-query)
+  DPKGQUERY=$(command -v dpkg-query)
 
   "${DPKGQUERY}" --list "${1}"
 
@@ -79,7 +79,7 @@ list() {
 }
 
 lock() {
-  APTMARK=$(which apt-mark)
+  APTMARK=$(command -v apt-mark)
 
   "${APTMARK}" hold "${1}"
 
@@ -87,11 +87,11 @@ lock() {
 }
 
 restore() {
-  CP=$(which cp)
-  APTCACHE=$(which apt-cache)
-  DPKG=$(which dpkg)
-  XARGS=$(which xargs)
-  APTMARK=$(which apt-mark)
+  CP=$(command -v cp)
+  APTCACHE=$(command -v apt-cache)
+  DPKG=$(command -v dpkg)
+  XARGS=$(command -v xargs)
+  APTMARK=$(command -v apt-mark)
 
   "${CP}" -R "${1:-$BACKUP_DIRECTORY}" /usr/share
   "${CP}" -R "${1:-$BACKUP_DIRECTORY}" /etc/apt
@@ -110,7 +110,7 @@ restore() {
 }
 
 search() {
-  DPKGQUERY=$(which dpkg-query)
+  DPKGQUERY=$(command -v dpkg-query)
 
   "${DPKGQUERY}" --search "${1}"
 
@@ -118,7 +118,7 @@ search() {
 }
 
 unlock() {
-  APTMARK=$(which apt-mark)
+  APTMARK=$(command -v apt-mark)
 
   "${APTMARK}" unhold "${1}"
 

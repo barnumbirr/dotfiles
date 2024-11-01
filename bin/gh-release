@@ -6,14 +6,16 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option] <username/repo>
+Usage: $(basename "${0}") [options] USERNAME/REPO
 
-  -h, --help  display this help message and exit
+  -V, --verbose    output debug information
+  -h, --help       display this help message and exit
 EOF
 }
 
 main() {
-  CURL=$(which curl)
+  CURL=$(command -v curl)
+
   VERSION=$("${CURL}" --silent "https://api.github.com/repos/${1}/releases/latest" |
   grep -Po "(?<=\"tag_name\": \").*(?=\")")
 
@@ -27,26 +29,35 @@ main() {
   unset VERSION
 }
 
-if [ "$#" -eq 0 ]; then
-  echo "$(basename "${0}"): missing argument"
-  echo "Try '$(basename "${0}") -h' for more information."
-  exit 1
-fi
+parse_params() {
+  while true; do
+    case "${1-}" in
+      "-h"|"--help")
+        usage
+        exit 0
+        ;;
+      "-V"|"--verbose")
+        set -x
+        ;;
+      -?*)
+        echo "$(basename "${0}"): Invalid option ${1}"
+        echo "Try '$(basename "${0}") -h' for more information."
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
 
-while true; do
-  case "${1-}" in
-    "-h"|"--help")
-      usage
-      exit 0
-      ;;
-    -?*)
-      echo "$(basename "${0}"): Invalid option ${1}"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-    *)
-      main "${1}"
-      break
-      ;;
-  esac
-done
+  if [ -z "$1" ]; then
+    echo "$(basename "${0}"): USERNAME/REPO is required."
+    echo "Try '$(basename "${0}") -h' for more information."
+    exit 1
+  fi
+
+  main "$@"
+}
+
+parse_params "$@"

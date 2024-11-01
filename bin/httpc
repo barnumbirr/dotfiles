@@ -5,9 +5,10 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [option] <code>
+Usage: $(basename "${0}") [options] HTTP_STATUS_CODE
 
-  -h, --help  display this help message and exit
+  -V, --verbose    output debug information
+  -h, --help       display this help message and exit
 EOF
 }
 
@@ -133,7 +134,7 @@ wiki_link() {
   echo "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#${1}"
 }
 
-code() {
+main() {
   HTTP_TEXT=$(status_text "${1}")
 
   if [ "${HTTP_TEXT}" = "Unknown HTTP Code" ]; then
@@ -144,34 +145,37 @@ code() {
   WIKIPEDIA_LINK=$(wiki_link "${1}")
 
   echo "${1} ${HTTP_TEXT} - ${WIKIPEDIA_LINK}"
-
-  unset HTTP_TEXT
-  unset WIKIPEDIA_LINK
 }
 
-if [ "$#" -eq 0 ]; then
-  echo "$(basename "${0}"): missing argument"
-  echo "Try '$(basename "${0}") -h' for more information."
-  exit 1
-fi
+parse_params() {
+  while true; do
+    case "${1-}" in
+      "-h"|"--help")
+        usage
+        exit 0
+        ;;
+      "-V"|"--verbose")
+        set -x
+        ;;
+      -?*)
+        echo "$(basename "${0}"): Invalid option ${1}"
+        echo "Try '$(basename "${0}") -h' for more information."
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
 
-while true; do
-  case "${1-}" in
-    "-h"|"--help")
-      usage
-      exit 0
-      ;;
-    -?*)
-      echo "$(basename "${0}"): Invalid option $1"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-    *)
-      code "$@"
-      break
-      ;;
-  esac
-  shift
-done
+  if [ -z "$1" ]; then
+    echo "$(basename "${0}"): HTTP_STATUS_CODE is required."
+    echo "Try '$(basename "${0}") -h' for more information."
+    exit 1
+  fi
 
+  main "$@"
+}
 
+parse_params "$@"

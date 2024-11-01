@@ -5,12 +5,13 @@
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [option]
+Usage: $(basename "$0") [parameters] [options]
 
-  -d  set working directory (default: \$PWD)
-  -n  return number of lines (default: 20)
+  -d, --directory DIRECTORY    set working directory (default: \$PWD)
+  -n, --number NUMBER          return number of lines (default: 20)
 
-  -h  display this help message and exit
+  -V, --verbose                output debug information
+  -h, --help                   display this help message and exit
 EOF
 }
 
@@ -21,29 +22,37 @@ main() {
   head -n "${NUMBER:-20}"
 }
 
-while true; do
-  case "${1-}" in
-    "-h"|"--help")
-      usage
-      exit 0
-      ;;
-    "-d"|"--directory")
-      DIRECTORY="${2-}"
-      shift
-      ;;
-    "-n"|"--number")
-      NUMBER="${2-}"
-      shift
-      ;;
-    -?*)
-      echo "$(basename "${0}"): Invalid option $1"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-    *)
-      main "$@"
-      break
-      ;;
-  esac
-  shift
-done
+parse_params() {
+  while true; do
+    case "${1-}" in
+      "-h"|"--help")
+        usage
+        exit 0
+        ;;
+      "-d"|"--directory")
+        DIRECTORY="${2-}"
+        shift
+        ;;
+      "-n"|"--number")
+        NUMBER="${2-}"
+        shift
+        ;;
+      "-V"|"--verbose")
+        set -x
+        ;;
+      -?*)
+        echo "$(basename "${0}"): Invalid option ${1}"
+        echo "Try '$(basename "${0}") -h' for more information."
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  main "$@"
+}
+
+parse_params "$@"
