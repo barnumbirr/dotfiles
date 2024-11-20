@@ -276,17 +276,17 @@ up () {
     cd "$d" || return
 }
 
-# Move 'target' $1 to 'target.bak'
+# Copy 'target' $1 to 'target.bak'
 bak() {
     local target="${1%/}"
-    mv -v "$target" "$target.bak"
+    cp --verbose "$target" "$target.bak"
 }
 
 # Revert previously bak'd 'target'
 unbak() {
     local target="${1%/}" # Remove trailing / if present
     if [[ "$target" == *.bak ]]; then
-        mv -v "$target" "${target%.bak}"
+        mv --verbose --interactive "$target" "${target%.bak}"
     else
         echo "No .bak extension, ignoring '$target'"
     fi
