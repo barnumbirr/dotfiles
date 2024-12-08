@@ -276,10 +276,23 @@ up () {
     cd "$d" || return
 }
 
-# Copy 'target' $1 to 'target.bak'
+# Backup 'target' $1 to 'target.bak' using either cp or mv
 bak() {
+    local mode="cp"
     local target="${1%/}"
-    cp --verbose "$target" "$target.bak"
+
+    if [[ "$1" == "-m" ]]; then
+        mode="mv"
+        shift
+        target="${1%/}"
+    fi
+
+    if [[ -z "$target" ]]; then
+        echo "Usage: bak [-m] <target>"
+        return 1
+    fi
+
+    "$mode" --verbose "$target" "$target.bak"
 }
 
 # Revert previously bak'd 'target'
