@@ -5,5 +5,7 @@
   signingkey = 98763DC54A0266EF
 [commit]
   gpgsign = true
+[tag]
+  gpgsign = true
 [gpg]
   program = gpg2
