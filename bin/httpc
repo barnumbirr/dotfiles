@@ -92,6 +92,7 @@ status_text() {
     598) echo "(Informal convention) Network read timeout error";;
     599) echo "Network Connect Timeout Error";;
     783) echo "Unexpected Token (Shopify)";;
+    999) echo "Non-standard";;
     # Internet Information Services
     440) echo "Login Time-out";;
     449) echo "Retry With";;

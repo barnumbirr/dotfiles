@@ -8,7 +8,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "${0}") [options] LOCATION
 
-  -l, --location LOCATION   return weather for location (default: Luxembourg,Luxembourg)
+  -l, --location LOCATION   return weather for location (default: Arlon,Belgium)
 
   -V, --verbose             output debug information
   -h, --help                display this help message and exit
@@ -18,7 +18,7 @@ EOF
 query() {
   CURL=$(command -v curl)
 
-  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://wttr.in/${LOCATION:-Luxembourg,Luxembourg}?2nqmF); then
+  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://wttr.in/${LOCATION:-Arlon,Belgium}?2nqmF); then
     echo "$(basename "${0}"): An error occured, please try again"
     exit 1
   fi
