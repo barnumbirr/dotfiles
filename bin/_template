@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# script-name - One-line description
+#
+
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
+usage() {
+  cat <<EOF
+Usage: $PROG_NAME [options] REQUIRED_ARG
+
+Description of what the script does.
+
+Options:
+  -x, --example VALUE   description of option
+  -V, --verbose         output debug information
+  -h, --help            display this help message and exit
+EOF
+}
+
+main() {
+  # business logic here
+  :
+}
+
+parse_params() {
+  EXAMPLE_OPT=""
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -x | --example)
+        [ "${2-}" ] || die "missing value after $1"
+        EXAMPLE_OPT="$2"
+        shift
+        ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      # --- subcommands (if applicable) ---
+      # backup) shift; cmd_backup "$@"; return ;;
+      # --- positional args ---
+      *)   break ;;
+    esac
+    shift
+  done
+
+  # Validate required positional arg (option-style scripts):
+  [ "${1-}" ] || die "REQUIRED_ARG is required.\nTry '$PROG_NAME -h' for more information."
+  # Or for subcommand-style scripts:
+  # die "missing command.\nTry '$PROG_NAME -h' for more information."
+
+  main "$@"
+}
+
+parse_params "$@"

@@ -3,168 +3,114 @@
 # pkg - APT magic
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
 BACKUP_DIRECTORY="/var/backups/apt"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] [command]
+Usage: $PROG_NAME <command> [args]
 
-  backup   save installed/marked packages, GPG keys and sources
-  files    list files installed to system from package
-  list     list all known packages matching one or more patterns
-  lock     lock package to currently installed version
-  restore  restore backup from <directory>
-  search   search for packages that own files corresponding to the given patterns
-  unlock   unlock previously locked package
+Commands:
+  backup [DIR]    save installed/marked packages, GPG keys and sources
+  files PKG       list files installed to system from package
+  list PATTERN    list all known packages matching one or more patterns
+  lock PKG        lock package to currently installed version
+  restore [DIR]   restore backup from directory
+  search PATTERN  search for packages that own files corresponding to the given patterns
+  unlock PKG      unlock previously locked package
 
-  -h, --help  display this help message and exit
+Options:
+  -h, --help      display this help message and exit
 EOF
 }
 
-whoami() {
-  ID=$(command -v id)
+require_root() {
+  [ "$(id -u)" -eq 0 ] || die "permission denied, please run as root"
+}
 
-  if [ "$(${ID} -u)" -ne 0 ]; then
-    echo "$(basename "${0}"): Permission denied, please run as root."
-    exit 1
+cmd_backup() {
+  _bk_dir="${1:-$BACKUP_DIRECTORY}"
+
+  if [ ! -d "$_bk_dir" ]; then
+    mkdir -pv "$_bk_dir"
+  else
+    msg "directory $_bk_dir already exists, skipping creation..."
   fi
 
-  unset ID
+  cp -R /etc/apt/sources.list* "$_bk_dir/"
+  cp -R /usr/share/keyrings /etc/apt/keyrings "$_bk_dir"
+  dpkg --get-selections > "$_bk_dir/packages.txt"
+  apt-mark showauto > "$_bk_dir/marked.txt" 2>/dev/null
+
+  echo "Backup completed. Files saved to $_bk_dir"
 }
 
-_mkdir() {
-  MKDIR=$(command -v mkdir)
-
-  if [ ! -d "${1}" ]; then
-    "${MKDIR}" -pv "${1}"
-  fi
-
-  echo "Directory ${1} already exists, skipping..."
-
-  unset MKDIR
+cmd_files() {
+  dpkg-query --listfiles "$1"
 }
 
-backup() {
-  CP=$(command -v cp)
-  DPKG=$(command -v dpkg)
-  APTMARK=$(command -v apt-mark)
-
-  _mkdir "${1:-$BACKUP_DIRECTORY}"
-  "${CP}" -R /etc/apt/sources.list* "${1:-$BACKUP_DIRECTORY}/"
-  "${CP}" -R /usr/share/keyrings /etc/apt/keyrings "${1:-$BACKUP_DIRECTORY}"
-  "${DPKG}" --get-selections > "${1:-$BACKUP_DIRECTORY}/packages.txt"
-  "${APTMARK}" showauto > "${1:-$BACKUP_DIRECTORY}/marked.txt" 2>/dev/null
-
-  echo "Backup completed. Files saved to ${1:-$BACKUP_DIRECTORY}"
-
-  unset CP
-  unset DPKG
-  unset APTMARK
+cmd_list() {
+  dpkg-query --list "$1"
 }
 
-files() {
-  DPKGQUERY=$(command -v dpkg-query)
-
-  "${DPKGQUERY}" --listfiles "${1}"
-
-  unset DPKGQUERY
+cmd_lock() {
+  apt-mark hold "$1"
 }
 
-list() {
-  DPKGQUERY=$(command -v dpkg-query)
+cmd_restore() {
+  _rs_dir="${1:-$BACKUP_DIRECTORY}"
 
-  "${DPKGQUERY}" --list "${1}"
-
-  unset DPKGQUERY
-}
-
-lock() {
-  APTMARK=$(command -v apt-mark)
-
-  "${APTMARK}" hold "${1}"
-
-  unset APTMARK
-}
-
-restore() {
-  CP=$(command -v cp)
-  APTCACHE=$(command -v apt-cache)
-  DPKG=$(command -v dpkg)
-  XARGS=$(command -v xargs)
-  APTMARK=$(command -v apt-mark)
-
-  "${CP}" -R "${1:-$BACKUP_DIRECTORY}" /usr/share
-  "${CP}" -R "${1:-$BACKUP_DIRECTORY}" /etc/apt
-  "${APTCACHE}" dumpavail > /tmp/dumpavail.tmp && "${DPKG}" --merge-avail /tmp/dumpavail.tmp && rm /tmp/dumpavail.tmp
-  "${DPKG}" --clear-selections
-  "${DPKG}" --get-selections < "${1:-$BACKUP_DIRECTORY}"/packages.txt
-  "${XARGS}" "${APTMARK}" showauto < "${1:-$BACKUP_DIRECTORY}/marked.txt"
+  cp -R "$_rs_dir/keyrings" /usr/share/
+  cp -R "$_rs_dir/sources.list"* /etc/apt/
+  [ -d "$_rs_dir/keyrings" ] && cp -R "$_rs_dir/keyrings" /etc/apt/ 2>/dev/null || true
+  _rs_tmp=$(mktemp)
+  apt-cache dumpavail > "$_rs_tmp" && dpkg --merge-avail "$_rs_tmp"
+  rm -f "$_rs_tmp"
+  dpkg --clear-selections
+  dpkg --set-selections < "$_rs_dir/packages.txt"
+  xargs apt-mark auto < "$_rs_dir/marked.txt"
 
   echo "Restore completed."
-
-  unset CP
-  unset APTCACHE
-  unset DPKG
-  unset XARGS
-  unset APTMARK
 }
 
-search() {
-  DPKGQUERY=$(command -v dpkg-query)
-
-  "${DPKGQUERY}" --search "${1}"
-
-  unset DPKGQUERY
+cmd_search() {
+  dpkg-query --search "$1"
 }
 
-unlock() {
-  APTMARK=$(command -v apt-mark)
-
-  "${APTMARK}" unhold "${1}"
-
-  unset APTMARK
+cmd_unlock() {
+  apt-mark unhold "$1"
 }
 
-while true; do
-  whoami
-  case "${1-}" in
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    backup)
-      backup "${2-}"
-      exit 0
-      ;;
-    files)
-      files "${2-}"
-      exit 0
-      ;;
-    list)
-      list "${2-}"
-      exit 0
-      ;;
-    lock)
-      lock "${2-}"
-      exit 0
-      ;;
-    restore)
-      restore "${2-}"
-      exit 0
-      ;;
-    search)
-      search "${2-}"
-      exit 0
-      ;;
-    unlock)
-      unlock "${2-}"
-      exit 0
-      ;;
-    *)
-      echo "$(basename "${0}"): missing operand"
-      echo "Try '$(basename "${0}") -h' for more information."
-      exit 1
-      ;;
-  esac
-  shift
-done
+parse_params() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      backup)  require_root; shift; cmd_backup "${1-}"; return ;;
+      files)   shift; cmd_files "${1-}"; return ;;
+      list)    shift; cmd_list "${1-}"; return ;;
+      lock)    require_root; shift; cmd_lock "${1-}"; return ;;
+      restore) require_root; shift; cmd_restore "${1-}"; return ;;
+      search)  shift; cmd_search "${1-}"; return ;;
+      unlock)  require_root; shift; cmd_unlock "${1-}"; return ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   die "unknown command: $1\nTry '$PROG_NAME -h' for more information." ;;
+    esac
+    shift
+  done
+
+  die "missing command.\nTry '$PROG_NAME -h' for more information."
+}
+
+parse_params "$@"

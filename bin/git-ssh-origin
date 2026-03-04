@@ -3,60 +3,57 @@
 # git-ssh-origin - HTTPS to SSH Git origin URLs
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options]
+Usage: $PROG_NAME [options]
 
+Convert the Git origin remote from HTTPS to SSH URL.
+
+Options:
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 EOF
 }
 
 main() {
-  GIT=$(command -v git)
-  ORIGINAL_URL=$(${GIT} remote get-url origin)
+  _main_orig=$(git remote get-url origin 2>/dev/null) || die "not in a git repository or no 'origin' remote"
 
-  if [ "${ORIGINAL_URL#git@}" != "$ORIGINAL_URL" ]; then
-    echo "Already an SSH URL: $ORIGINAL_URL"
-    exit 0
+  if [ "${_main_orig#git@}" != "$_main_orig" ]; then
+    echo "Already an SSH URL: $_main_orig"
+    return
   fi
 
-  UPDATED_URL=$(echo "$ORIGINAL_URL" | sed 's/https:\/\//git@/' | sed 's/\//:/')
+  _main_updated=$(echo "$_main_orig" | sed 's|https://|git@|; s|/|:|')
 
-  ${GIT} remote set-url origin "$UPDATED_URL"
-
-  if [ $? -eq 0 ]; then
+  if git remote set-url origin "$_main_updated"; then
     echo "Origin URL was updated"
-    echo "Original URL: $ORIGINAL_URL"
-    echo "Updated URL: $UPDATED_URL"
+    echo "Original URL: $_main_orig"
+    echo "Updated URL: $_main_updated"
   else
-    echo "Failed to update Git origin URL."
-    exit 1
+    die "failed to update Git origin URL"
   fi
-
-  unset GIT
-  unset ORIGINAL_URL
-  unset UPDATED_URL
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done

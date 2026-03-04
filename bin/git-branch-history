@@ -1,38 +1,79 @@
 #!/bin/sh
 #
-# gh-branch-history - Per branch git history
+# git-branch-history - Per branch git history
 #
+
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
+usage() {
+  cat <<EOF
+Usage: $PROG_NAME [options]
+
+Show last commit date, author, and name for each remote branch.
+
+Options:
+  -V, --verbose   output debug information
+  -h, --help      display this help message and exit
+EOF
+}
 
 pad_string() {
   printf "%-${2}s" "$1"
 }
 
-if [ -d ".git" ]; then
-  GIT_DIR=".git"
-elif [ -d ".dotfiles" ]; then
-  GIT_DIR=".dotfiles"
-else
-  printf "fatal: not a git repository\n"
-  exit 1
-fi
+main() {
+  if [ -d ".git" ]; then
+    GIT_DIR=".git"
+  elif [ -d ".dotfiles" ]; then
+    GIT_DIR=".dotfiles"
+  else
+    die "not a git repository"
+  fi
 
-export GIT_DIR
+  export GIT_DIR
 
-if [ "$(GIT_WORK_TREE="." git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
-  data=$(git branch -r | grep -v HEAD | while read -r branch; do
-      commit_data=$(git show --format="%ci|%cr|%an" "$branch" | head -n 1)
-      commit_date=$(echo "$commit_data" | cut -d'|' -f1)
-      commit_rel_date=$(echo "$commit_data" | cut -d'|' -f2)
-      commit_author=$(echo "$commit_data" | cut -d'|' -f3)
-      commit_info=$(pad_string "$commit_date ($commit_rel_date)" 56)
-      author_info=$(pad_string "$commit_author" 25)
-      printf "%s%s%s\n" "$commit_info" "$author_info" "${branch##*/}"
+  if [ "$(GIT_WORK_TREE="." git rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
+    die "not a git repository"
+  fi
+
+  _main_data=$(git branch -r | grep -v HEAD | while read -r _main_branch; do
+    _main_commit_data=$(git show --format="%ci|%cr|%an" "$_main_branch" | head -n 1)
+    _main_date=$(echo "$_main_commit_data" | cut -d'|' -f1)
+    _main_rel=$(echo "$_main_commit_data" | cut -d'|' -f2)
+    _main_author=$(echo "$_main_commit_data" | cut -d'|' -f3)
+    _main_info=$(pad_string "$_main_date ($_main_rel)" 56)
+    _main_ainfo=$(pad_string "$_main_author" 25)
+    printf "%s%s%s\n" "$_main_info" "$_main_ainfo" "${_main_branch##*/}"
   done | sort -r)
 
   printf "%-56s%-25s%-s\n" "Commit Date" "Commit Author" "Branch"
   printf "%-56s%-25s%-s\n" "-----------" "-------------" "------"
-  printf "%s\n" "$data"
-else
-  printf "fatal: not a git repository\n"
-  exit 1
-fi
+  printf "%s\n" "$_main_data"
+}
+
+parse_params() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
+    esac
+    shift
+  done
+
+  main "$@"
+}
+
+parse_params "$@"

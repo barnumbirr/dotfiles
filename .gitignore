@@ -4,7 +4,6 @@
 
 /.dotfiles
 /.local/
-/.local/share
 
 # unclutter untracked
 /.aws

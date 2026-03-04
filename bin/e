@@ -3,4 +3,6 @@
 # e - Shortcut to an editor.
 #
 
+set -eu
+
 exec "${EDITOR}" "$@"

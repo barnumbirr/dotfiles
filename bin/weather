@@ -1,61 +1,466 @@
 #!/bin/sh
 #
-# weather - weather forecast
-# https://github.com/chubin/wttr.in
+# weather - weather forecast via Open-Meteo API
+# https://open-meteo.com/
 #
+
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] LOCATION
+Usage: $PROG_NAME [options] [LOCATION]
 
-  -l, --location LOCATION   return weather for location (default: Arlon,Belgium)
+Display weather forecast via Open-Meteo.
+
+Options:
+  -l, --location LOCATION   return weather for location (default: Clémency, Luxembourg)
 
   -V, --verbose             output debug information
   -h, --help                display this help message and exit
 EOF
 }
 
-query() {
-  CURL=$(command -v curl)
+# ---------------------------------------------------------------------------
+# WMO weather code → icon name + description
+# Sets: _wmo_icon, _wmo_desc
+# ---------------------------------------------------------------------------
+wmo_lookup() {
+  case "$1" in
+    0)     _wmo_icon=Sunny;                _wmo_desc="Clear sky" ;;
+    1)     _wmo_icon=Sunny;                _wmo_desc="Mainly clear" ;;
+    2)     _wmo_icon=PartlyCloudy;         _wmo_desc="Partly cloudy" ;;
+    3)     _wmo_icon=VeryCloudy;           _wmo_desc="Overcast" ;;
+    45|48) _wmo_icon=Fog;                  _wmo_desc="Fog" ;;
+    51|53) _wmo_icon=LightRain;            _wmo_desc="Light drizzle" ;;
+    55)    _wmo_icon=HeavyRain;            _wmo_desc="Dense drizzle" ;;
+    56|57) _wmo_icon=LightSleet;           _wmo_desc="Freezing drizzle" ;;
+    61)    _wmo_icon=LightShowers;         _wmo_desc="Slight rain" ;;
+    63)    _wmo_icon=HeavyShowers;         _wmo_desc="Moderate rain" ;;
+    65)    _wmo_icon=HeavyRain;            _wmo_desc="Heavy rain" ;;
+    66|67) _wmo_icon=LightSleet;           _wmo_desc="Freezing rain" ;;
+    71|77) _wmo_icon=LightSnow;            _wmo_desc="Light snow" ;;
+    73)    _wmo_icon=LightSnow;            _wmo_desc="Moderate snow" ;;
+    75)    _wmo_icon=HeavySnow;            _wmo_desc="Heavy snow" ;;
+    80)    _wmo_icon=LightShowers;         _wmo_desc="Light showers" ;;
+    81|82) _wmo_icon=HeavyShowers;         _wmo_desc="Heavy showers" ;;
+    85)    _wmo_icon=LightSnowShowers;     _wmo_desc="Light snow showers" ;;
+    86)    _wmo_icon=HeavySnowShowers;     _wmo_desc="Heavy snow showers" ;;
+    95)    _wmo_icon=ThunderyHeavyRain;    _wmo_desc="Thunderstorm" ;;
+    96|99) _wmo_icon=ThunderyHeavyRain;    _wmo_desc="Thunderstorm with hail" ;;
+    *)     _wmo_icon=Unknown;              _wmo_desc="Unknown" ;;
+  esac
+}
 
-  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://wttr.in/${LOCATION:-Arlon,Belgium}?2nqmF); then
-    echo "$(basename "${0}"): An error occured, please try again"
-    exit 1
+# ---------------------------------------------------------------------------
+# Wind direction degrees → Unicode arrow
+# Sets: _wind_arrow
+# ---------------------------------------------------------------------------
+wind_arrow() {
+  case $(( (${1:-0} + 22) / 45 % 8 )) in
+    0) _wind_arrow="↓" ;;
+    1) _wind_arrow="↙" ;;
+    2) _wind_arrow="←" ;;
+    3) _wind_arrow="↖" ;;
+    4) _wind_arrow="↑" ;;
+    5) _wind_arrow="↗" ;;
+    6) _wind_arrow="→" ;;
+    7) _wind_arrow="↘" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# ASCII art icon. Each line is exactly 13 visual chars wide.
+# ANSI codes are pre-rendered so downstream code can use %s (not %b).
+# Sets: _icon_1, _icon_2, _icon_3, _icon_4, _icon_5
+# ---------------------------------------------------------------------------
+set_icon() {
+  _c0='\033[0m'
+  _cY='\033[38;5;226m'    # yellow (sun)
+  _cG='\033[38;5;250m'    # gray (cloud)
+  _cD='\033[38;5;244;1m'  # dark gray (heavy cloud)
+  _cF='\033[38;5;251m'    # fog
+  _cB='\033[38;5;111m'    # light blue (light rain)
+  _cH='\033[38;5;33;1m'   # blue (heavy rain)
+  _cW='\033[38;5;255m'    # white (snow)
+  _cL='\033[38;5;228m'    # lightning
+
+  # Each visible-char count annotated as [N] — must be 13
+  case "$1" in
+    Sunny)                                              # visible
+      _icon_1="${_cY}    \\   /    ${_c0}"              # [13]
+      _icon_2="${_cY}     .-.     ${_c0}"               # [13]
+      _icon_3="${_cY}  ― (   ) ―  ${_c0}"              # [13]
+      _icon_4="${_cY}     \`-'     ${_c0}"              # [13]
+      _icon_5="${_cY}    /   \\    ${_c0}"              # [13]
+      ;;
+    PartlyCloudy)
+      _icon_1="${_cY}   \\  /      ${_c0}"             # [13]
+      _icon_2="${_cY} _ /\"\".-.    ${_c0}"             # [13]
+      _icon_3="${_cG}   \\_(   ).  ${_c0}"             # [13]
+      _icon_4="${_cG}   /(___(__) ${_c0}"              # [13]
+      _icon_5="             "                           # [13]
+      ;;
+    Cloudy)
+      _icon_1="             "                           # [13]
+      _icon_2="${_cG}     .--.    ${_c0}"               # [13]
+      _icon_3="${_cG}  .-(    ).  ${_c0}"               # [13]
+      _icon_4="${_cG} (___.__)__) ${_c0}"               # [13]
+      _icon_5="             "                           # [13]
+      ;;
+    VeryCloudy)
+      _icon_1="             "                           # [13]
+      _icon_2="${_cD}     .--.    ${_c0}"               # [13]
+      _icon_3="${_cD}  .-(    ).  ${_c0}"               # [13]
+      _icon_4="${_cD} (___.__)__) ${_c0}"               # [13]
+      _icon_5="             "                           # [13]
+      ;;
+    Fog)
+      _icon_1="             "                           # [13]
+      _icon_2="${_cF} _ - _ - _ - ${_c0}"              # [13]
+      _icon_3="${_cF}  _ - _ - _  ${_c0}"              # [13]
+      _icon_4="${_cF} _ - _ - _ - ${_c0}"              # [13]
+      _icon_5="             "                           # [13]
+      ;;
+    LightRain)
+      _icon_1="${_cG}     .--.    ${_c0}"               # [13]
+      _icon_2="${_cG}  .-(    ).  ${_c0}"               # [13]
+      _icon_3="${_cG} (___.__)__) ${_c0}"               # [13]
+      _icon_4="${_cB}  ' ' ' ' '  ${_c0}"              # [13]
+      _icon_5="${_cB} ' ' ' ' '   ${_c0}"              # [13]
+      ;;
+    HeavyRain)
+      _icon_1="${_cD}     .--.    ${_c0}"               # [13]
+      _icon_2="${_cD}  .-(    ).  ${_c0}"               # [13]
+      _icon_3="${_cD} (___.__)__) ${_c0}"               # [13]
+      _icon_4="${_cH} ,',',','    ${_c0}"             # [13]
+      _icon_5="${_cH} ,',',','    ${_c0}"             # [13]
+      ;;
+    LightShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cB}    ' ' ' '  ${_c0}"              # [13]
+      _icon_5="${_cB}   ' ' ' '   ${_c0}"              # [13]
+      ;;
+    HeavyShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cH}  ,',',','   ${_c0}"             # [13]
+      _icon_5="${_cH}  ,',',','   ${_c0}"             # [13]
+      ;;
+    LightSnow)
+      _icon_1="${_cG}     .--.    ${_c0}"               # [13]
+      _icon_2="${_cG}  .-(    ).  ${_c0}"               # [13]
+      _icon_3="${_cG} (___.__)__) ${_c0}"               # [13]
+      _icon_4="${_cW}  *  *  *    ${_c0}"              # [13]
+      _icon_5="${_cW} *  *  *     ${_c0}"              # [13]
+      ;;
+    HeavySnow)
+      _icon_1="${_cD}     .--.    ${_c0}"               # [13]
+      _icon_2="${_cD}  .-(    ).  ${_c0}"               # [13]
+      _icon_3="${_cD} (___.__)__) ${_c0}"               # [13]
+      _icon_4="${_cW} * * * * *   ${_c0}"              # [13]
+      _icon_5="${_cW} * * * * *   ${_c0}"              # [13]
+      ;;
+    LightSnowShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cW}    *  *  *  ${_c0}"              # [13]
+      _icon_5="${_cW}   *  *  *   ${_c0}"              # [13]
+      ;;
+    HeavySnowShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cW}   * * * *   ${_c0}"              # [13]
+      _icon_5="${_cW}   * * * *   ${_c0}"              # [13]
+      ;;
+    LightSleet)
+      _icon_1="${_cG}     .--.    ${_c0}"               # [13]
+      _icon_2="${_cG}  .-(    ).  ${_c0}"               # [13]
+      _icon_3="${_cG} (___.__)__) ${_c0}"               # [13]
+      _icon_4="${_cB}  ' ${_cW}*${_cB} ' ${_cW}*    ${_c0}"   # [13]
+      _icon_5="${_cW} *${_cB} ' ${_cW}*${_cB} '     ${_c0}"   # [13]
+      ;;
+    LightSleetShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cB}   ' ${_cW}*${_cB} ' ${_cW}*   ${_c0}"   # [13]
+      _icon_5="${_cW}  *${_cB} ' ${_cW}*${_cB} '    ${_c0}"   # [13]
+      ;;
+    ThunderyShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cL}    !${_cB}' '${_cL}!    ${_c0}"       # [13]
+      _icon_5="${_cB}   ' ' ' '   ${_c0}"              # [13]
+      ;;
+    ThunderyHeavyRain)
+      _icon_1="${_cD}     .--.    ${_c0}"               # [13]
+      _icon_2="${_cD}  .-(    ).  ${_c0}"               # [13]
+      _icon_3="${_cD} (___.__)__) ${_c0}"               # [13]
+      _icon_4="${_cL}  !${_cH}',${_cL}!${_cH}',     ${_c0}"       # [13]
+      _icon_5="${_cH} ,','${_cL}!${_cH}','    ${_c0}"       # [13]
+      ;;
+    ThunderySnowShowers)
+      _icon_1="${_cY} _\`/\"\"${_cG}.-.    ${_c0}"     # [13]
+      _icon_2="${_cG}  ,\\_(   ).  ${_c0}"             # [13]
+      _icon_3="${_cG}  /(___(__)  ${_c0}"              # [13]
+      _icon_4="${_cL}    !${_cW}*${_cL}!${_cW}*     ${_c0}"       # [13]
+      _icon_5="${_cW}   *  *  *   ${_c0}"              # [13]
+      ;;
+    *)
+      _icon_1="             "                           # [13]
+      _icon_2="    .-.      "                           # [13]
+      _icon_3="     __)     "                           # [13]
+      _icon_4="    (        "                           # [13]
+      _icon_5="     \`-'     "                          # [13]
+      ;;
+  esac
+
+  # Pre-render ANSI escape codes so callers can use %s instead of %b
+  _icon_1=$(printf '%b' "$_icon_1")
+  _icon_2=$(printf '%b' "$_icon_2")
+  _icon_3=$(printf '%b' "$_icon_3")
+  _icon_4=$(printf '%b' "$_icon_4")
+  _icon_5=$(printf '%b' "$_icon_5")
+}
+
+# ---------------------------------------------------------------------------
+# Geocode: location string → lat/lon/name
+# Sets: _geo_lat, _geo_lon, _geo_name
+# ---------------------------------------------------------------------------
+geocode() {
+  _geo_enc=$(printf '%s' "$1" | jq -sRr @uri)
+  if ! _geo_json=$(curl --disable --fail --silent --max-time 10 \
+    "https://geocoding-api.open-meteo.com/v1/search?name=${_geo_enc}&count=1"); then
+    die "geocoding request failed"
   fi
 
-  echo "${RESPONSE}"
+  _geo_lat=$(printf '%s' "$_geo_json" | jq -r '.results[0].latitude // empty')
+  [ -n "$_geo_lat" ] || die "location not found: $1"
+  _geo_lon=$(printf '%s' "$_geo_json" | jq -r '.results[0].longitude // empty')
+  _geo_name=$(printf '%s' "$_geo_json" | jq -r '
+    .results[0] | [.name, .admin1 // empty, .country // empty]
+    | map(select(. != "")) | join(", ")')
+}
 
-  unset CURL
-  unset RESPONSE
+# ---------------------------------------------------------------------------
+# Fetch forecast JSON
+# Sets: _fc_json
+# ---------------------------------------------------------------------------
+fetch_forecast() {
+  _fc_url="https://api.open-meteo.com/v1/forecast"
+  _fc_url="${_fc_url}?latitude=${1}&longitude=${2}"
+  _fc_url="${_fc_url}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,visibility,precipitation"
+  _fc_url="${_fc_url}&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation,visibility,relative_humidity_2m"
+  _fc_url="${_fc_url}&forecast_days=2"
+  _fc_url="${_fc_url}&timezone=auto"
+
+  if ! _fc_json=$(curl --disable --fail --silent --max-time 10 "$_fc_url"); then
+    die "forecast request failed"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Aggregate hourly data for a period (day or night)
+# $1=json $2=day_offset (0 or 1) $3=start_hour $4=end_hour
+# Sets: _agg_code _agg_temp _agg_wind _agg_wdir _agg_precip _agg_vis _agg_hum
+# ---------------------------------------------------------------------------
+aggregate_period() {
+  _agg_start=$(( $2 * 24 + $3 ))
+  _agg_end=$(( $2 * 24 + $4 ))
+
+  _agg_line=$(printf '%s' "$1" | jq -r --argjson s "$_agg_start" --argjson e "$_agg_end" '
+    .hourly as $h |
+    [ range($s; $e + 1) ] as $idx |
+
+    # weather code: max (worst weather)
+    ([ $idx[] | $h.weather_code[.] ] | max) as $code |
+
+    # temperature: average, rounded
+    ([ $idx[] | $h.temperature_2m[.] ] | add / length | round) as $temp |
+
+    # wind: max speed, direction at that hour
+    ([ $idx[] | { i: ., s: $h.wind_speed_10m[.] } ] | max_by(.s)) as $maxw |
+    ($maxw.s | round) as $wind |
+    ($h.wind_direction_10m[$maxw.i] | round) as $wdir |
+
+    # precipitation: sum, 1 decimal
+    ([ $idx[] | $h.precipitation[.] ] | add * 10 | round / 10) as $precip |
+
+    # visibility: min, meters→km capped at 10
+    ([ $idx[] | $h.visibility[.] ] | min / 1000 | if . > 10 then 10 else . end | round) as $vis |
+
+    # humidity: average, rounded
+    ([ $idx[] | $h.relative_humidity_2m[.] ] | add / length | round) as $hum |
+
+    [ $code, $temp, $wind, $wdir, $precip, $vis, $hum ] | @tsv
+  ')
+
+  IFS='	' read -r _agg_code _agg_temp _agg_wind _agg_wdir _agg_precip _agg_vis _agg_hum <<EOF
+$_agg_line
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Pad/truncate string to N visible characters
+# $1=string $2=width
+# ---------------------------------------------------------------------------
+pad() {
+  printf '%s' "$1" | awk -v w="$2" '{
+    s = $0; l = length(s)
+    if (l >= w) { printf "%s", substr(s, 1, w) }
+    else { while (l++ < w) s = s " "; printf "%s", s }
+  }'
+}
+
+# ---------------------------------------------------------------------------
+# Render current conditions (5 lines: icon + data)
+# ---------------------------------------------------------------------------
+render_current() {
+  _rc_line=$(printf '%s' "$_fc_json" | jq -r '
+    .current |
+    [ .weather_code, (.temperature_2m | round), (.wind_speed_10m | round),
+      (.wind_direction_10m | round),
+      (.visibility / 1000 | if . > 10 then 10 else . end | round),
+      (.precipitation * 10 | round / 10),
+      .relative_humidity_2m ] | @tsv
+  ')
+
+  IFS='	' read -r _rc_code _rc_temp _rc_wind _rc_wdir _rc_vis _rc_precip _rc_hum <<EOF
+$_rc_line
+EOF
+
+  wmo_lookup "$_rc_code"
+  set_icon "$_wmo_icon"
+  wind_arrow "$_rc_wdir"
+
+  printf '%s %s\n'       "$_icon_1" "$_wmo_desc"
+  printf '%s %d °C\n'    "$_icon_2" "$_rc_temp"
+  printf '%s %s %d km/h\n' "$_icon_3" "$_wind_arrow" "$_rc_wind"
+  printf '%s %d km\n'    "$_icon_4" "$_rc_vis"
+  printf '%s %.1f mm | %d%%\n' "$_icon_5" "$_rc_precip" "$_rc_hum"
+}
+
+# ---------------------------------------------------------------------------
+# Render one forecast cell (5 icon+data lines)
+# Expects _agg_* variables to be set. Outputs lines into _cell_1.._cell_5
+# Each cell is exactly 30 visible chars: icon(13) + space(1) + data(15) + space(1)
+# ---------------------------------------------------------------------------
+set_cell() {
+  wmo_lookup "$_agg_code"
+  set_icon "$_wmo_icon"
+  wind_arrow "$_agg_wdir"
+
+  _cell_desc=$(pad "$_wmo_desc" 15)
+  _cell_temp=$(pad "$_agg_temp °C" 15)
+  _cell_wind=$(pad "$_wind_arrow $_agg_wind km/h" 15)
+  _cell_vis=$(pad "$_agg_vis km" 15)
+  _cell_prec=$(printf '%.1f mm | %d%%' "$_agg_precip" "$_agg_hum")
+  _cell_prec=$(pad "$_cell_prec" 15)
+
+  _cell_1=$(printf '%s %s ' "$_icon_1" "$_cell_desc")
+  _cell_2=$(printf '%s %s ' "$_icon_2" "$_cell_temp")
+  _cell_3=$(printf '%s %s ' "$_icon_3" "$_cell_wind")
+  _cell_4=$(printf '%s %s ' "$_icon_4" "$_cell_vis")
+  _cell_5=$(printf '%s %s ' "$_icon_5" "$_cell_prec")
+}
+
+# ---------------------------------------------------------------------------
+# Render one forecast day (date header + Day/Night columns)
+# $1=json $2=day_offset (0 or 1)
+# ---------------------------------------------------------------------------
+render_forecast_day() {
+  _rfd_date=$(printf '%s' "$1" | jq -r ".hourly.time[$2 * 24][:10]")
+  _rfd_label=$(date -d "$_rfd_date" "+%a %d %b" 2>/dev/null || echo "$_rfd_date")
+
+  # --- Day aggregation (hours 6-17) ---
+  aggregate_period "$1" "$2" 6 17
+  set_cell
+  _day_1="$_cell_1"; _day_2="$_cell_2"; _day_3="$_cell_3"
+  _day_4="$_cell_4"; _day_5="$_cell_5"
+
+  # --- Night aggregation (hours 18-23) ---
+  aggregate_period "$1" "$2" 18 23
+  set_cell
+  _ngt_1="$_cell_1"; _ngt_2="$_cell_2"; _ngt_3="$_cell_3"
+  _ngt_4="$_cell_4"; _ngt_5="$_cell_5"
+
+  # --- Print table ---
+  # Column: "│"(col1) + 30 chars + "│"(col32) + 30 chars + "│"(col63) = 63 total
+  # Use ANSI CHA (Cursor Horizontal Absolute) to force │ to exact columns,
+  # avoiding alignment issues from terminals that miscount multi-byte char widths.
+  _cha32=$(printf '\033[32G')   # force cursor to column 32
+  _cha63=$(printf '\033[63G')   # force cursor to column 63
+  # Date label: 13-char field (2 leading spaces + %-11s) matches wttr.in's justifyCenter
+  _rfd_pad_label=$(printf '  %-11s' "$_rfd_label")
+  printf '                        ┌─────────────┐\n'
+  printf '┌───────────────────────┤%s├───────────────────────┐\n' "$_rfd_pad_label"
+  printf '│%-30s│%-30s│\n' "            Day" "           Night"
+  printf '├──────────────────────────────┼──────────────────────────────┤\n'
+  printf '│%s%s│%s%s│\n' "$_day_1" "$_cha32" "$_ngt_1" "$_cha63"
+  printf '│%s%s│%s%s│\n' "$_day_2" "$_cha32" "$_ngt_2" "$_cha63"
+  printf '│%s%s│%s%s│\n' "$_day_3" "$_cha32" "$_ngt_3" "$_cha63"
+  printf '│%s%s│%s%s│\n' "$_day_4" "$_cha32" "$_ngt_4" "$_cha63"
+  printf '│%s%s│%s%s│\n' "$_day_5" "$_cha32" "$_ngt_5" "$_cha63"
+  printf '└──────────────────────────────┴──────────────────────────────┘\n'
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+main() {
+  command -v jq >/dev/null 2>&1 || die "jq is required but not installed"
+
+  geocode "$LOCATION"
+  msg "Weather for: $_geo_name"
+  echo
+
+  fetch_forecast "$_geo_lat" "$_geo_lon"
+
+  render_current
+  echo
+  render_forecast_day "$_fc_json" 0
+  render_forecast_day "$_fc_json" 1
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-l"|"--location")
-        LOCATION="${2-}"
+  LOCATION=""
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -l | --location)
+        [ "${2-}" ] || die "missing value after $1"
+        LOCATION="$2"
         shift
         ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  query "$@"
+  [ -n "${1-}" ] && LOCATION="$1"
+  LOCATION="${LOCATION:-Clémency, Luxembourg}"
+
+  main
 }
 
 parse_params "$@"

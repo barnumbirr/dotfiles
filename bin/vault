@@ -4,65 +4,63 @@
 # https://github.com/barnumbirr/vault
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] FILE
+Usage: $PROG_NAME [options] [FILE]
 
+Upload a file to vault.tf. Reads from stdin if no FILE is given.
+
+Options:
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 EOF
 }
 
-vault() {
-  CURL=$(command -v curl)
-  VAULT_URL="https://vault.tf"
-  VAULT_SECRET_KEY="${VAULT_SECRET_KEY}"
+_extract_key() {
+  if command -v jq >/dev/null 2>&1; then
+    echo "$1" | jq -r .key
+  else
+    echo "$1" | sed 's/.*"key":"\([^"]*\)".*/\1/'
+  fi
+}
 
-  RESPONSE=$("${CURL}" --silent --fail --data-binary @"${1:--}" \
-       -H "Authorization: $VAULT_SECRET_KEY" "$VAULT_URL/documents") || {
-      echo "ERROR: failed to paste" >&2
-      exit 1
-  }
+main() {
+  _main_url="https://vault.tf"
 
-  VAULT_KEY=$(echo "$RESPONSE" | grep -o '"key":"[^"]*' | grep -o '[^"]*$')
+  _main_resp=$(curl --silent --fail --data-binary @"${1:--}" \
+    -H "Authorization: $VAULT_SECRET_KEY" "$_main_url/documents") || \
+    die "failed to paste"
 
-  echo "${VAULT_URL}"/"${VAULT_KEY}"
+  _main_key=$(_extract_key "$_main_resp")
 
-  unset CURL
-  unset VAULT_URL
-  unset VAULT_KEY
-  unset VAULT_SECRET_KEY
+  echo "$_main_url/$_main_key"
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  if [ -z "$1" ]; then
-    echo "$(basename "${0}"): FILE is required."
-    echo "Try '$(basename "${0}") -h' for more information."
-    exit 1
-  fi
-
-  vault "$@"
+  main "${1:--}"
 }
 
 parse_params "$@"

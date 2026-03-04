@@ -1,33 +1,75 @@
 #!/bin/sh
 #
 # human - convert bytes to human readable format
-# http://github.com/mitchweaver/bin/human
-#
-# Ex:
-#    6579057657 -> '6.12G'
-#    562952382  -> '536.82M'
 #
 
-if [ ! "$1" ] ; then
-  read -r inp
-  set -- "$inp"
-fi
+set -eu
 
-if [ "$1" -gt 1099511627776 ] ; then
-  res=$(( $1 * 100 / 1099511627776 ))
-  pow=TiB
-elif [ "$1" -gt 1073741824 ] ; then
-  res=$(( $1 * 100 / 1073741824 ))
-  pow=GiB
-elif [ "$1" -gt 1048576 ] ; then
-  res=$(( $1 * 100 / 1048576 ))
-  pow=MiB
-elif [ "$1" -gt 1024 ] ; then
-  res=$(( $1 * 100 / 1024 ))
-  pow=KiB
-else
-  printf '%sB\n' "${1:-0}"
-  exit
-fi
+PROG_NAME="${0##*/}"
 
-printf "%d.%02d%s\n" "$((res / 100))" "$((res % 100))" "$pow"
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
+usage() {
+  cat <<EOF
+Usage: $PROG_NAME [options] BYTES
+
+Convert bytes to human readable format.
+
+Examples:
+  $PROG_NAME 6579057657   -> 6.12GiB
+  $PROG_NAME 562952382    -> 536.82MiB
+
+Options:
+  -V, --verbose    output debug information
+  -h, --help       display this help message and exit
+EOF
+}
+
+main() {
+  if [ "$1" -ge 1099511627776 ]; then
+    _main_res=$(( $1 * 100 / 1099511627776 ))
+    _main_pow=TiB
+  elif [ "$1" -ge 1073741824 ]; then
+    _main_res=$(( $1 * 100 / 1073741824 ))
+    _main_pow=GiB
+  elif [ "$1" -ge 1048576 ]; then
+    _main_res=$(( $1 * 100 / 1048576 ))
+    _main_pow=MiB
+  elif [ "$1" -ge 1024 ]; then
+    _main_res=$(( $1 * 100 / 1024 ))
+    _main_pow=KiB
+  else
+    printf '%sB\n' "${1:-0}"
+    return
+  fi
+
+  printf "%d.%02d%s\n" "$((_main_res / 100))" "$((_main_res % 100))" "$_main_pow"
+}
+
+parse_params() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
+    esac
+    shift
+  done
+
+  if [ ! "${1-}" ]; then
+    read -r _pp_inp
+    set -- "$_pp_inp"
+  fi
+
+  main "$@"
+}
+
+parse_params "$@"

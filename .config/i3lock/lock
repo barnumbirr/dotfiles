@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 I3_CONFIG="$HOME/.config/i3/config"
 BLUR_SIGMA=25

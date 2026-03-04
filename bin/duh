@@ -3,10 +3,26 @@
 # duh - du for humans
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [parameters] [options]
+Usage: $PROG_NAME [options]
 
+Show largest files/directories by size.
+
+Options:
   -d, --directory DIRECTORY    set working directory (default: \$PWD)
   -n, --number NUMBER          return number of lines (default: 20)
 
@@ -16,38 +32,31 @@ EOF
 }
 
 main() {
-  du -ah 2> "$(mktemp)" "${DIRECTORY:-.}" |
-  grep -v 'Permission denied' |
+  du -ah 2>/dev/null "${DIRECTORY:-.}" |
   sort -rh |
   head -n "${NUMBER:-20}"
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-d"|"--directory")
-        DIRECTORY="${2-}"
+  DIRECTORY=""
+  NUMBER=""
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -d | --directory)
+        [ "${2-}" ] || die "missing value after $1"
+        DIRECTORY="$2"
         shift
         ;;
-      "-n"|"--number")
-        NUMBER="${2-}"
+      -n | --number)
+        [ "${2-}" ] || die "missing value after $1"
+        NUMBER="$2"
         shift
         ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done

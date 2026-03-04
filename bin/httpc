@@ -1,180 +1,168 @@
 #!/bin/sh
 #
-# http - HTTP status code information
+# httpc - HTTP status code information
 #
+
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] HTTP_STATUS_CODE
+Usage: $PROG_NAME [options] HTTP_STATUS_CODE
 
+Look up an HTTP status code and print its description.
+
+Options:
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 EOF
 }
 
-status_text() {
-  case "${1}" in
-    100) echo "Continue";;
-    101) echo "Switching Protocols";;
-    102) echo "Processing (WebDAV; RFC 2518)";;
-    103) echo "Early Hints (RFC 8297)";;
-    200) echo "OK";;
-    201) echo "Created";;
-    202) echo "Accepted";;
-    203) echo "Non-Authoritative Information (since HTTP/1.1)";;
-    204) echo "No Content";;
-    205) echo "Reset Content";;
-    206) echo "Partial Content";;
-    207) echo "Multi-Status (WebDAV; RFC 4918)";;
-    208) echo "Already Reported (WebDAV; RFC 5842)";;
-    226) echo "IM Used (RFC 3229)";;
-    300) echo "Multiple Choices";;
-    301) echo "Moved Permanently";;
-    302) echo "Found (Previously \"Moved temporarily\")";;
-    303) echo "See Other (since HTTP/1.1)";;
-    304) echo "Not Modified";;
-    305) echo "Use Proxy (since HTTP/1.1)";;
-    306) echo "Switch Proxy";;
-    307) echo "Temporary Redirect (since HTTP/1.1)";;
-    308) echo "Permanent Redirect";;
-    400) echo "Bad Request";;
-    401) echo "Unauthorized";;
-    402) echo "Payment Required";;
-    403) echo "Forbidden";;
-    404) echo "Not Found";;
-    405) echo "Method Not Allowed";;
-    406) echo "Not Acceptable";;
-    407) echo "Proxy Authentication Required";;
-    408) echo "Request Timeout";;
-    409) echo "Conflict";;
-    410) echo "Gone";;
-    411) echo "Length Required";;
-    412) echo "Precondition Failed";;
-    413) echo "Payload Too Large";;
-    414) echo "URI Too Long";;
-    415) echo "Unsupported Media Type";;
-    416) echo "Range Not Satisfiable";;
-    417) echo "Expectation Failed";;
-    418) echo "I'm a teapot (RFC 2324, RFC 7168)";;
-    421) echo "Misdirected Request";;
-    422) echo "Unprocessable Content";;
-    423) echo "Locked (WebDAV; RFC 4918)";;
-    424) echo "Failed Dependency (WebDAV; RFC 4918)";;
-    425) echo "Too Early (RFC 8470)";;
-    426) echo "Upgrade Required";;
-    428) echo "Precondition Required (RFC 6585)";;
-    429) echo "Too Many Requests (RFC 6585)";;
-    431) echo "Request Header Fields Too Large (RFC 6585)";;
-    451) echo "Unavailable For Legal Reasons (RFC 7725)";;
-    500) echo "Internal Server Error";;
-    501) echo "Not Implemented";;
-    502) echo "Bad Gateway";;
-    503) echo "Service Unavailable";;
-    504) echo "Gateway Timeout";;
-    505) echo "HTTP Version Not Supported";;
-    506) echo "Variant Also Negotiates (RFC 2295)";;
-    507) echo "Insufficient Storage (WebDAV; RFC 4918)";;
-    508) echo "Loop Detected (WebDAV; RFC 5842)";;
-    510) echo "Not Extended (RFC 2774)";;
-    511) echo "Network Authentication Required (RFC 6585)";;
-    # Unofficial codes
-    218) echo "This is fine (Apache HTTP Server)";;
-    419) echo "Page Expired (Laravel Framework)";;
-    420) echo "Method Failure (Spring Framework) or Enhance Your Calm (Twitter)";;
-    430) echo "Request Header Fields Too Large (Shopify) or Shopify Security Rejection (Shopify)";;
-    450) echo "Blocked by Windows Parental Controls (Microsoft)";;
-    498) echo "Invalid Token (Esri)";;
-    499) echo "Token Required (Esri)";;
-    509) echo "Bandwidth Limit Exceeded (Apache Web Server/cPanel)";;
-    529) echo "Site is overloaded";;
-    530) echo "Site is frozen or Origin DNS Error (Shopify)";;
-    540) echo "Temporarily Disabled (Shopify)";;
-    598) echo "(Informal convention) Network read timeout error";;
-    599) echo "Network Connect Timeout Error";;
-    783) echo "Unexpected Token (Shopify)";;
-    999) echo "Non-standard";;
-    # Internet Information Services
-    440) echo "Login Time-out";;
-    449) echo "Retry With";;
-    451) echo "Redirect";;
-    # nginx
-    444) echo "No Response";;
-    494) echo "Request header too large";;
-    495) echo "SSL Certificate Error";;
-    496) echo "SSL Certificate Required";;
-    497) echo "HTTP Request Sent to HTTPS Port";;
-    499) echo "Client Closed Request";;
-    # Cloudflare
-    520) echo "Web Server Returned an Unknown Error";;
-    521) echo "Web Server Is Down";;
-    522) echo "Connection Timed Out";;
-    523) echo "Origin Is Unreachable";;
-    524) echo "A Timeout Occurred";;
-    525) echo "SSL Handshake Failed";;
-    526) echo "Invalid SSL Certificate";;
-    527) echo "Railgun Error";;
-    # AWS Elastic Load Balancing
-    000) echo "";;
-    460) echo "";;
-    463) echo "";;
-    464) echo "";;
-    561) echo "Unauthorized";;
-    # Caching warning codes (obsoleted)
-    110) echo "Response is Stale";;
-    111) echo "Revalidation Failed";;
-    112) echo "Disconnected Operation";;
-    113) echo "Heuristic Expiration";;
-    199) echo "Miscellaneous Warning";;
-    214) echo "Transformation Applied";;
-    299) echo "Miscellaneous Persistent Warning";;
-    *)   echo "Unknown HTTP Code";;
-  esac
-}
-
-wiki_link() {
-  echo "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#${1}"
-}
+HTTP_DATA='100|Continue
+101|Switching Protocols
+102|Processing (WebDAV; RFC 2518)
+103|Early Hints (RFC 8297)
+110|Response is Stale (obsoleted caching warning)|unofficial
+111|Revalidation Failed (obsoleted caching warning)|unofficial
+112|Disconnected Operation (obsoleted caching warning)|unofficial
+113|Heuristic Expiration (obsoleted caching warning)|unofficial
+199|Miscellaneous Warning (obsoleted caching warning)|unofficial
+200|OK
+201|Created
+202|Accepted
+203|Non-Authoritative Information (since HTTP/1.1)
+204|No Content
+205|Reset Content
+206|Partial Content
+207|Multi-Status (WebDAV; RFC 4918)
+208|Already Reported (WebDAV; RFC 5842)
+214|Transformation Applied (obsoleted caching warning)|unofficial
+218|This is fine (Apache HTTP Server)|unofficial
+226|IM Used (RFC 3229)
+299|Miscellaneous Persistent Warning (obsoleted caching warning)|unofficial
+300|Multiple Choices
+301|Moved Permanently
+302|Found (Previously "Moved temporarily")
+303|See Other (since HTTP/1.1)
+304|Not Modified
+305|Use Proxy (since HTTP/1.1)
+306|Switch Proxy
+307|Temporary Redirect (since HTTP/1.1)
+308|Permanent Redirect
+400|Bad Request
+401|Unauthorized
+402|Payment Required
+403|Forbidden
+404|Not Found
+405|Method Not Allowed
+406|Not Acceptable
+407|Proxy Authentication Required
+408|Request Timeout
+409|Conflict
+410|Gone
+411|Length Required
+412|Precondition Failed
+413|Payload Too Large
+414|URI Too Long
+415|Unsupported Media Type
+416|Range Not Satisfiable
+417|Expectation Failed
+418|I'"'"'m a teapot (RFC 2324, RFC 7168)
+419|Page Expired (Laravel Framework)|unofficial
+420|Method Failure (Spring Framework) or Enhance Your Calm (Twitter)|unofficial
+421|Misdirected Request
+422|Unprocessable Content
+423|Locked (WebDAV; RFC 4918)
+424|Failed Dependency (WebDAV; RFC 4918)
+425|Too Early (RFC 8470)
+426|Upgrade Required
+428|Precondition Required (RFC 6585)
+429|Too Many Requests (RFC 6585)
+430|Request Header Fields Too Large (Shopify) or Shopify Security Rejection (Shopify)|unofficial
+431|Request Header Fields Too Large (RFC 6585)
+440|Login Time-out (IIS)|unofficial
+444|No Response (nginx)|unofficial
+449|Retry With (IIS)|unofficial
+450|Blocked by Windows Parental Controls (Microsoft)|unofficial
+451|Unavailable For Legal Reasons (RFC 7725)
+451|Redirect (IIS)|unofficial
+460|Client closed connection before load balancer idle timeout (AWS ELB)|unofficial
+463|X-Forwarded-For header with more than 30 IPs (AWS ELB)|unofficial
+464|Incompatible protocol versions (AWS ELB)|unofficial
+494|Request header too large (nginx)|unofficial
+495|SSL Certificate Error (nginx)|unofficial
+496|SSL Certificate Required (nginx)|unofficial
+497|HTTP Request Sent to HTTPS Port (nginx)|unofficial
+498|Invalid Token (Esri)|unofficial
+499|Token Required (Esri)|unofficial
+499|Client Closed Request (nginx)|unofficial
+500|Internal Server Error
+501|Not Implemented
+502|Bad Gateway
+503|Service Unavailable
+504|Gateway Timeout
+505|HTTP Version Not Supported
+506|Variant Also Negotiates (RFC 2295)
+507|Insufficient Storage (WebDAV; RFC 4918)
+508|Loop Detected (WebDAV; RFC 5842)
+509|Bandwidth Limit Exceeded (Apache Web Server/cPanel)|unofficial
+510|Not Extended (RFC 2774)
+511|Network Authentication Required (RFC 6585)
+520|Web Server Returned an Unknown Error (Cloudflare)|unofficial
+521|Web Server Is Down (Cloudflare)|unofficial
+522|Connection Timed Out (Cloudflare)|unofficial
+523|Origin Is Unreachable (Cloudflare)|unofficial
+524|A Timeout Occurred (Cloudflare)|unofficial
+525|SSL Handshake Failed (Cloudflare)|unofficial
+526|Invalid SSL Certificate (Cloudflare)|unofficial
+527|Railgun Error (Cloudflare)|unofficial
+529|Site is overloaded|unofficial
+530|Site is frozen or Origin DNS Error (Shopify)|unofficial
+540|Temporarily Disabled (Shopify)|unofficial
+561|Unauthorized (AWS ELB)|unofficial
+598|(Informal convention) Network read timeout error|unofficial
+599|Network Connect Timeout Error|unofficial
+783|Unexpected Token (Shopify)|unofficial
+999|Non-standard|unofficial'
 
 main() {
-  HTTP_TEXT=$(status_text "${1}")
+  _main_code="$1"
+  _main_wiki="https://en.wikipedia.org/wiki/List_of_HTTP_status_codes"
 
-  if [ "${HTTP_TEXT}" = "Unknown HTTP Code" ]; then
-    echo "${1} - ${HTTP_TEXT}"
-    exit 1
-  fi
+  _main_out=$(printf '%s\n' "$HTTP_DATA" | awk -F'|' -v code="$_main_code" -v wiki="$_main_wiki" \
+    '$1 == code {
+      anchor = ($3 == "unofficial") ? "unofficial" : $1
+      printf "%s %s - %s#%s\n", $1, $2, wiki, anchor
+      found = 1
+    }
+    END { if (!found) exit 1 }') || \
+    die "unknown HTTP status code: $_main_code"
 
-  WIKIPEDIA_LINK=$(wiki_link "${1}")
-
-  echo "${1} ${HTTP_TEXT} - ${WIKIPEDIA_LINK}"
+  printf '%s\n' "$_main_out"
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  if [ -z "$1" ]; then
-    echo "$(basename "${0}"): HTTP_STATUS_CODE is required."
-    echo "Try '$(basename "${0}") -h' for more information."
-    exit 1
-  fi
+  [ "${1-}" ] || die "HTTP_STATUS_CODE is required.\nTry '$PROG_NAME -h' for more information."
 
   main "$@"
 }

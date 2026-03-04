@@ -1,3 +1,5 @@
+[include]
+  path = ~/.config/git/common.gitconfig
 [includeIf "gitdir:~/.dotfiles"]
   path = ~/.config/git/users/personal.gitconfig
 [includeIf "gitdir:~/code/kosmonaut/"]
@@ -8,17 +10,3 @@
   path = ~/.config/git/users/personal.gitconfig
 [includeIf "gitdir:~/code/work/"]
   path = ~/.config/git/users/work.gitconfig
-[diff]
-  tool = icdiff
-[difftool]
-  prompt = false
-[help]
-  autocorrect = 1
-[icdiff]
-  options = --highlight --line-numbers
-[core]
-  pager = less
-[pull]
-  rebase = false
-[safe]
-  directory = *

@@ -4,64 +4,123 @@
 # https://github.com/barnumbirr/0xff
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] URL
+Usage: $PROG_NAME [options] URL
 
-  -V, --verbose    output debug information
-  -h, --help       display this help message and exit
+Shorten, list, or delete URLs via 0xff.tf.
+
+Options:
+  -c, --custom SLUG   use a custom slug (https://0xff.tf/SLUG)
+  -d, --delete SLUG   delete a short URL by slug
+  -l, --list          list all your shortened URLs
+
+  -V, --verbose       output debug information
+  -h, --help          display this help message and exit
 EOF
 }
 
+_pretty_json() {
+  if command -v jq >/dev/null 2>&1; then
+    echo "$1" | jq
+  elif command -v python >/dev/null 2>&1; then
+    echo "$1" | python -m json.tool
+  else
+    msg "WARNING: Neither 'jq' nor 'python' installed"
+    echo "$1"
+  fi
+}
+
 _0xff() {
-  CURL=$(command -v curl)
-  SHORTENER_URL="https://0xff.tf"
-  SHORTENER_SECRET_KEY="${SHORTENER_SECRET_KEY}"
+  _0xff_url="https://0xff.tf"
 
-  RESPONSE=$("${CURL}" --silent --fail -X POST \
-            -H "Authorization: ${SHORTENER_SECRET_KEY}" \
-            -H "URL: $1" ${SHORTENER_URL}) || {
-      echo "ERROR: failed to shorten" >&2
-      exit 1
-  }
+  if [ -n "$LIST" ]; then
+    _0xff_raw=$(curl --silent --fail -X GET \
+      -H "Authorization: ${SHORTENER_SECRET_KEY}" \
+      "$_0xff_url") || die "failed to list short URLs"
+    _pretty_json "$_0xff_raw"
+    return
+  fi
 
-  echo "${RESPONSE}" | grep -o '"short":"[^"]*' | grep -o '[^"]*$'
+  if [ -n "$DELETE_SLUG" ]; then
+    _0xff_raw=$(curl --silent --fail -X DELETE \
+      -H "Authorization: ${SHORTENER_SECRET_KEY}" \
+      "$_0xff_url/${DELETE_SLUG}") || die "failed to delete slug '${DELETE_SLUG}'"
+    _pretty_json "$_0xff_raw"
+    return
+  fi
 
-  unset CURL
-  unset RESPONSE
-  unset SHORTENER_URL
-  unset SHORTENER_SECRET_KEY
+  if [ -n "$CUSTOM_SLUG" ]; then
+    _0xff_status=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+      -H "Authorization: ${SHORTENER_SECRET_KEY}" \
+      "$_0xff_url/${CUSTOM_SLUG}")
+
+    if [ "$_0xff_status" = "200" ]; then
+      die "slug '${CUSTOM_SLUG}' already exists"
+    fi
+
+    _0xff_method="PUT"
+    _0xff_path="$_0xff_url/${CUSTOM_SLUG}"
+  else
+    _0xff_method="POST"
+    _0xff_path="$_0xff_url"
+  fi
+
+  _0xff_resp=$(curl --silent --fail -X "$_0xff_method" \
+    -H "Authorization: ${SHORTENER_SECRET_KEY}" \
+    -H "URL: $1" "$_0xff_path") || die "failed to shorten URL"
+
+  _pretty_json "$_0xff_resp"
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
+  CUSTOM_SLUG=""
+  DELETE_SLUG=""
+  LIST=""
+  _pp_url=""
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -c | --custom)
+        [ "${2-}" ] || die "missing slug after $1"
+        CUSTOM_SLUG="$2"
+        shift
         ;;
-      "-V"|"--verbose")
-        set -x
+      -d | --delete)
+        [ "${2-}" ] || die "missing slug after $1"
+        DELETE_SLUG="$2"
+        shift
         ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+      -l | --list) LIST="1" ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   _pp_url="$1" ;;
     esac
     shift
   done
 
-  if [ -z "$1" ]; then
-    echo "$(basename "${0}"): URL is required."
-    echo "Try '$(basename "${0}") -h' for more information."
-    exit 1
+  if [ -n "$LIST" ] || [ -n "$DELETE_SLUG" ]; then
+    _0xff
+    return
   fi
 
-  _0xff "$@"
+  [ -n "$_pp_url" ] || die "URL is required unless listing or deleting.\nTry '$PROG_NAME -h' for more information."
+
+  _0xff "$_pp_url"
 }
 
 parse_params "$@"

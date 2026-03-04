@@ -6,96 +6,92 @@
 # allow downloading "master" Ziglang (use https://zigbin.io/master/x86_64-linux.tar.xz ?)
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+VERSION=0.13.0
+ARCH=x86_64
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options]
+Usage: $PROG_NAME [options]
 
-  -a, --arch ARCHITECTURE    specify host architecture
-  -v, --version VERSION      specify Zig version to install
+Download and install Zig.
+
+Options:
+  -a, --arch ARCHITECTURE    specify host architecture (default: x86_64)
+  -v, --version VERSION      specify Zig version to install (default: 0.13.0)
 
   -V, --verbose              output debug information
   -h, --help                 display this help message and exit
 EOF
 }
 
-VERSION=0.13.0
-ARCH=x86_64
+require_root() {
+  [ "$(id -u)" -eq 0 ] || die "permission denied, please run as root"
+}
 
 download() {
-  WGET=$(command -v wget)
-
-  "${WGET}" https://ziglang.org/download/${VERSION}/zig-linux-${ARCH}-${VERSION}.tar.xz
-
-  unset WGET
+  wget "https://ziglang.org/download/${VERSION}/zig-linux-${ARCH}-${VERSION}.tar.xz"
 }
 
 install() {
-  TAR=$(command -v tar)
-  MV=$(command -v mv)
-  RM=$(command -v rm)
-
-  "${TAR}" xvf zig-linux-${ARCH}-${VERSION}.tar.xz
-  "${MV}" --verbose zig-linux-${ARCH}-${VERSION} /usr/local/zig
-  "${RM}" --verbose zig-linux-${ARCH}-${VERSION}.tar.xz
-
-  unset TAR
-  unset MV
-  unset RM
+  tar xvf "zig-linux-${ARCH}-${VERSION}.tar.xz"
+  if [ -d /usr/local/zig ]; then
+    rm -rf /usr/local/zig
+  fi
+  mv --verbose "zig-linux-${ARCH}-${VERSION}" /usr/local/zig
+  rm --verbose "zig-linux-${ARCH}-${VERSION}.tar.xz"
 }
 
 conftest() {
-  GREP=$(command -v grep)
-  ECHO=$(command -v echo)
-
-  "${GREP}" -qxF 'export PATH=$PATH:/usr/local/zig' "$HOME/.profile" || \
-  "${ECHO}" 'export PATH=$PATH:/usr/local/zig' >> "$HOME/.profile" && \
+  if ! grep -qxF 'export PATH=$PATH:/usr/local/zig' "$HOME/.profile"; then
+    echo 'export PATH=$PATH:/usr/local/zig' >> "$HOME/.profile"
+  fi
   export PATH=$PATH:/usr/local/zig
-
-  unset GREP
-  unset ECHO
 
   zig help
   zig version
 }
 
-parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-a"|"--architecture")
-        ARCH="${2-x86_64}"
-        shift
-        ;;
-      "-v"|"--version")
-        VERSION="${2-0.13.0}"
-        shift
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
-    esac
-    shift
-  done
-
-  return 0
-}
-
 main() {
+  require_root
   download
   install
   conftest
 }
 
+parse_params() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -a | --arch)
+        [ "${2-}" ] || die "missing value after $1"
+        ARCH="$2"
+        shift
+        ;;
+      -v | --version)
+        [ "${2-}" ] || die "missing value after $1"
+        VERSION="$2"
+        shift
+        ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
+    esac
+    shift
+  done
+
+  main
+}
+
 parse_params "$@"
-main
