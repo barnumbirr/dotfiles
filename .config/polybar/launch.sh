@@ -7,7 +7,7 @@ killall -q polybar
 while pgrep -u $UID -x polybar >/dev/null; do sleep 1; done
 
 # -r flag reloads polybar on config change
-if type "xrandr"; then
+if command -v xrandr > /dev/null 2>&1; then
   for m in $(xrandr --query | grep " connected" | cut -d" " -f1); do
     MONITOR=$m polybar --reload default &
   done

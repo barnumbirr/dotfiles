@@ -1,24 +1,12 @@
+[include]
+  path = ~/.config/git/common.gitconfig
 [includeIf "gitdir:~/.dotfiles"]
   path = ~/.config/git/users/personal.gitconfig
-[includeIf "gitdir:/mnt/c/Users/martin/code/kosmonaut/"]
+[includeIf "gitdir:/root/code/kosmonaut/"]
   path = ~/.config/git/users/kosmonaut.gitconfig
-[includeIf "gitdir:/mnt/c/Users/martin/code/monka/"]
+[includeIf "gitdir:/root/code/monka/"]
   path = ~/.config/git/users/monka.gitconfig
-[includeIf "gitdir:/mnt/c/Users/martin/code/personal/"]
+[includeIf "gitdir:/root/code/personal/"]
   path = ~/.config/git/users/personal.gitconfig
-[includeIf "gitdir:/mnt/c/Users/martin/code/work/"]
+[includeIf "gitdir:/root/code/work/"]
   path = ~/.config/git/users/work.gitconfig
-[diff]
-  tool = icdiff
-[difftool]
-  prompt = false
-[help]
-  autocorrect = 1
-[icdiff]
-  options = --highlight --line-numbers
-[core]
-  pager = less
-[pull]
-  rebase = false
-[safe]
-  directory = *

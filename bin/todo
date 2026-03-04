@@ -1,82 +1,121 @@
 #!/bin/sh
-
+#
 # todo - a simple todo script
-# https://github.com/nuxshed/dotfiles/blob/main/bin/todo
+#
 
-TODOFILE="$HOME"/.todo
+set -eu
+
+PROG_NAME="${0##*/}"
+TODOFILE="$HOME/.todo"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [command]
+Usage: $PROG_NAME [loc] <command>
 
-  a, add                  add new task to todo
-  l, ls, list             list all tasks in todo
-  d, done                 mark task as done
-  r, rm, remove           remove task from todo
-  e, edit                 edit todo file in ${EDITOR}
-  +<pattern>, @<pattern>  search for <pattern> in todo
+Commands:
+  a, add TASK               add new task to todo
+  l, ls, list               list all tasks in todo
+  d, done NUMBER            mark task as done
+  r, rm, remove             remove all tasks from todo
+  e, edit                   edit todo file in \$EDITOR
+  +<pattern>, @<pattern>    search for <pattern> in todo
+  h, help                   display this help message and exit
 
-  h, help                 display this help message and exit
+Use 'loc' before a command to use a local .todo file.
 EOF
 }
 
-# Use local .todo file if 'loc' argument is passed
-[ "$1" = "loc" ] && TODOFILE=.todo && shift
+cmd_add() {
+  [ "${1-}" ] || die "missing task description"
+  printf '%s\n' "$1" >> "$TODOFILE"
+}
 
-# Ensure the todo file is readable and exists
-[ ! -r "$TODOFILE" ] && touch "$TODOFILE"
+cmd_list() {
+  if [ ! -s "$TODOFILE" ]; then
+    echo "No tasks in the todo list."
+    return
+  fi
+  _list_i=0
+  while read -r _list_line; do
+    _list_i=$((_list_i + 1))
+    printf '\033[0;32m%s.\033[0m %s\n' "$_list_i" "$_list_line"
+  done < "$TODOFILE"
+}
 
-if [ "$#" -eq 0 ]; then
-  echo "$(basename "${0}"): missing command"
-  echo "Try '$(basename "${0}") help' for more information."
-  exit 1
-fi
-
-while true; do
-  case "${1-}" in
-    a | add)
-      [ "$2" ] || { echo "Error: Missing task description"; exit 1; }
-      printf '%s\n' "$2" >> "$TODOFILE"
-      exit ;;
-    l | ls | list)
-      if [ ! -s "$TODOFILE" ]; then
-        echo "No tasks in the todo list."
-      else
-        while read -r line; do
-          i=$((i+1))
-          printf "\033[0;32m%s.\033[0m %s\n" "$i" "$line"
-        done < "$TODOFILE"
-      fi
-      exit ;;
-    d | done)
-      [ "$2" ] || { echo "Error: Missing task number"; exit 1; }
-      sed -i "$2 d" "$TODOFILE"
-      exit ;;
-    r | rm | remove)
-      echo "Are you sure you want to remove all tasks? (y/n): \c"
-      read -r confirmation
-      case "$confirmation" in
-        y|Y)
-          rm "$TODOFILE"
-          echo "All tasks have been removed."
-          ;;
-        *)
-          echo "Operation cancelled."
-          ;;
-      esac
-      exit ;;
-    e | edit)
-      "${EDITOR}" "$TODOFILE"
-      exit ;;
-    +* | @*)
-      if grep -q "${1#?}" "$TODOFILE"; then
-        grep --color=auto -n -w "${1#?}" "$TODOFILE"
-      else
-        echo "No matches found for pattern: ${1#?}"
-      fi
-      exit ;;
-    h | help)
-      usage
-      exit ;;
+cmd_done() {
+  [ "${1-}" ] || die "missing task number"
+  case "$1" in
+    *[!0-9]*) die "task number must be a positive integer" ;;
   esac
-done
+  _done_total=$(wc -l < "$TODOFILE")
+  [ "$1" -ge 1 ] && [ "$1" -le "$_done_total" ] || die "task $1 does not exist"
+  _done_tmp=$(mktemp)
+  sed "$1 d" "$TODOFILE" > "$_done_tmp" && mv "$_done_tmp" "$TODOFILE"
+}
+
+cmd_remove() {
+  printf 'Are you sure you want to remove all tasks? (y/n): '
+  read -r _rm_confirm
+  case "$_rm_confirm" in
+    y | Y)
+      > "$TODOFILE"
+      echo "All tasks have been removed."
+      ;;
+    *)
+      echo "Operation cancelled."
+      ;;
+  esac
+}
+
+cmd_edit() {
+  "${EDITOR:?EDITOR is not set}" "$TODOFILE"
+}
+
+cmd_search() {
+  _search_pattern="${1#?}"
+  _search_out=$(grep -n -w "$_search_pattern" "$TODOFILE") || {
+    echo "No matches found for pattern: $_search_pattern"
+    return
+  }
+  printf '%s\n' "$_search_out"
+}
+
+parse_params() {
+  # Use local .todo file if 'loc' argument is passed
+  if [ "${1-}" = "loc" ]; then
+    TODOFILE=.todo
+    shift
+  fi
+
+  # Ensure the todo file is readable and exists
+  [ -r "$TODOFILE" ] || touch "$TODOFILE"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help | h | help)  usage; exit 0 ;;
+      -V | --verbose)          set -x ;;
+      a | add)       shift; cmd_add "$*"; return ;;
+      l | ls | list) cmd_list; return ;;
+      d | done)      shift; cmd_done "${1-}"; return ;;
+      r | rm | remove) cmd_remove; return ;;
+      e | edit)      cmd_edit; return ;;
+      +* | @*)       cmd_search "$1"; return ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME help' for more information." ;;
+      *)   die "unknown command: $1\nTry '$PROG_NAME help' for more information." ;;
+    esac
+    shift
+  done
+
+  die "missing command.\nTry '$PROG_NAME help' for more information."
+}
+
+parse_params "$@"

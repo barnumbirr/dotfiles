@@ -3,10 +3,26 @@
 # whatsmyip - return public IPv[4|6] address
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options]
+Usage: $PROG_NAME [options]
 
+Return your public IP address.
+
+Options:
   -4, --IPv4       return public IPv4 if present
   -6, --IPv6       return public IPv6 if present
   -a, --all        return both IPv4 and IPv6 if present
@@ -18,60 +34,39 @@ EOF
 }
 
 query() {
-  CURL=$(command -v curl)
-
-  if ! RESPONSE=$("${CURL}" --disable --fail --silent --compressed https://"${1}".icanhazip.com/); then
-    echo "$(basename "${0}"): An error occurred, please try again"
-    exit 1
+  if ! _query_resp=$(curl --disable --fail --silent --compressed "https://${1}.icanhazip.com/"); then
+    die "an error occurred, please try again"
   fi
 
-  if [ "${STRIP}" = "true" ]; then
-    echo -n "${RESPONSE}"
+  if [ "$STRIP" = true ]; then
+    printf '%s' "$_query_resp"
   else
-    echo "${RESPONSE}"
+    echo "$_query_resp"
   fi
-
-  unset CURL
-  unset RESPONSE
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-4"|"--IPv4")
-        PROTO="ipv4"
-        ;;
-      "-6"|"--IPv6")
-        PROTO="ipv6"
-        ;;
-      "-a"|"--all")
-        ALL="true"
-        ;;
-      "-s"|"--strip")
-        STRIP="true"
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  PROTO=""
+  ALL=false
+  STRIP=false
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -4 | --IPv4)    PROTO="ipv4" ;;
+      -6 | --IPv6)    PROTO="ipv6" ;;
+      -a | --all)     ALL=true ;;
+      -s | --strip)   STRIP=true ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  if [ "${ALL}" = "true" ]; then
-    for PROTO in ipv4 ipv6; do
-      query "${PROTO}"
+  if [ "$ALL" = true ]; then
+    for _pp_proto in ipv4 ipv6; do
+      query "$_pp_proto"
     done
   else
     query "${PROTO:-ipv4}"

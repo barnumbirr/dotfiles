@@ -3,4 +3,6 @@
 # e - Shortcut to an editor.
 #
 
-exec "${EDITOR}" "$@"
+set -eu
+
+exec "${EDITOR:?EDITOR is not set}" "$@"

@@ -4,7 +4,6 @@ alias path='echo -e ${PATH//:/\\n}'
 
 # Scripts from "$HOME/bin"
 alias shorten="0xff"
-alias paste="vault"
 alias pb="vault"
 alias wttr="weather"
 

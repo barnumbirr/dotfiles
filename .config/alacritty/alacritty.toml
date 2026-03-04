@@ -1,9 +1,6 @@
 live_config_reload = true
-working_directory = "None"
 
 [bell]
-animation = "EaseOutExpo"
-color = "#ffffff"
 duration = 0
 
 [colors]
@@ -113,7 +110,6 @@ mouse = "Middle"
 
 [scrolling]
 history = 100000
-multiplier = 3
 
 [selection]
 save_to_clipboard = false

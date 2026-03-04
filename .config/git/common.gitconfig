@@ -1,0 +1,14 @@
+[diff]
+  tool = icdiff
+[difftool]
+  prompt = false
+[help]
+  autocorrect = 1
+[icdiff]
+  options = --highlight --line-numbers
+[core]
+  pager = less
+[pull]
+  rebase = false
+[safe]
+  directory = *

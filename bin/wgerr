@@ -1,0 +1,202 @@
+#!/bin/sh
+#
+# wgerr - winget return code lookup (Symbol + Description)
+#
+# Data source:
+#   https://github.com/microsoft/winget-cli/blob/master/doc/windows/package-manager/winget/returnCodes.md
+# (raw) https://raw.githubusercontent.com/microsoft/winget-cli/master/doc/windows/package-manager/winget/returnCodes.md
+#
+
+set -eu
+
+PROG_NAME="${0##*/}"
+SRC_URL="https://raw.githubusercontent.com/microsoft/winget-cli/master/doc/windows/package-manager/winget/returnCodes.md"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
+usage() {
+  cat <<EOF
+Usage: $PROG_NAME [options] WINGET_ERROR_CODE
+
+Looks up a WinGet return code (HEX or Decimal) and prints its Symbol and Description.
+
+Examples:
+  $PROG_NAME 0x8A150001
+  $PROG_NAME 8A150001
+  $PROG_NAME -1978335231
+  $PROG_NAME 2316632065   # unsigned decimal also accepted
+
+Options:
+  -V, --verbose    output debug information
+  -h, --help       display this help message and exit
+EOF
+}
+
+fetch_md() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$SRC_URL"
+    return $?
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    wget -qO- "$SRC_URL"
+    return $?
+  fi
+
+  msg "need 'curl' or 'wget' to fetch return codes."
+  return 127
+}
+
+trim() {
+  # shellcheck disable=SC2001
+  echo "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+normalize_code() {
+  _nc_in="$(trim "$1")"
+
+  case "$_nc_in" in
+    0x* | 0X*)     _nc_hex="$_nc_in" ;;
+    *[A-Fa-f]*)    _nc_hex="0x$_nc_in" ;;
+    *)             _nc_hex="" ;;
+  esac
+
+  if [ -n "$_nc_hex" ]; then
+    _nc_u32=$((_nc_hex))
+    if [ "$_nc_u32" -gt 2147483647 ] 2>/dev/null; then
+      _nc_dec=$((_nc_u32 - 4294967296))
+    else
+      _nc_dec=$_nc_u32
+    fi
+    if [ "$_nc_u32" -lt 0 ] 2>/dev/null; then
+      _nc_u32=$((_nc_u32 + 4294967296))
+    fi
+    _nc_hex=$(printf '0x%08X' "$_nc_u32")
+    printf '%s %s\n' "$_nc_hex" "$_nc_dec"
+    return 0
+  fi
+
+  _nc_dec="$_nc_in"
+  case "$_nc_dec" in
+    -*) : ;;
+    *)
+      if [ "$_nc_dec" -gt 2147483647 ] 2>/dev/null; then
+        _nc_dec=$((_nc_dec - 4294967296))
+      fi
+      ;;
+  esac
+
+  _nc_u32="$_nc_dec"
+  if [ "$_nc_u32" -lt 0 ] 2>/dev/null; then
+    _nc_u32=$((_nc_u32 + 4294967296))
+  fi
+  _nc_hex=$(printf '0x%08X' "$_nc_u32")
+  printf '%s %s\n' "$_nc_hex" "$_nc_dec"
+}
+
+lookup_code() {
+  _lc_hex="$1"
+  _lc_dec="$2"
+
+  _lc_md=$(fetch_md) || die "failed to fetch return codes from GitHub"
+
+  printf '%s\n' "$_lc_md" | awk -v th="$_lc_hex" -v td="$_lc_dec" '
+    function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
+
+    BEGIN {
+      found = 0
+      sym = ""
+      desc = ""
+    }
+
+    /^\|/ {
+      n = split($0, a, "|")
+
+      h = trim(a[2]); d = trim(a[3]); s = trim(a[4]); r = trim(a[5])
+
+      if (h !~ /^0x[0-9A-Fa-f]+$/ && d ~ /^0x[0-9A-Fa-f]+$/) {
+        h = trim(a[3]); d = trim(a[4]); s = trim(a[5]); r = trim(a[6])
+      }
+
+      if (tolower(h) == "hex") next
+      if (h !~ /^0x[0-9A-Fa-f]+$/) next
+
+      if (found) {
+        collecting = 0
+        next
+      }
+
+      if (toupper(h) == toupper(th) || d == td) {
+        found = 1
+        collecting = 1
+        sym = s
+        desc = r
+      }
+      next
+    }
+
+    {
+      if (found && collecting) {
+        line = trim($0)
+        if (line != "") desc = desc " " line
+      }
+    }
+
+    END {
+      if (!found) exit 2
+      desc = trim(desc)
+      gsub(/[ \t\r\n]+/, " ", desc)
+      printf "%s - %s\n", sym, desc
+      exit 0
+    }
+  '
+}
+
+main() {
+  _main_code="$1"
+
+  _main_norm="$(normalize_code "$_main_code")" || exit 1
+  _main_hex="$(printf '%s\n' "$_main_norm" | awk '{print $1}')"
+  _main_dec="$(printf '%s\n' "$_main_norm" | awk '{print $2}')"
+
+  _main_out="$(lookup_code "$_main_hex" "$_main_dec")"
+  _main_rc=$?
+
+  case "$_main_rc" in
+    0)
+      printf '%s\n' "$_main_out"
+      ;;
+    2)
+      msg "unknown winget return code: $_main_code (hex=$_main_hex dec=$_main_dec)"
+      exit 1
+      ;;
+    *)
+      exit "$_main_rc"
+      ;;
+  esac
+}
+
+parse_params() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -[0-9]*)        break ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
+    esac
+    shift
+  done
+
+  [ "${1-}" ] || die "WINGET_ERROR_CODE is required.\nTry '$PROG_NAME -h' for more information."
+
+  main "$@"
+}
+
+parse_params "$@"

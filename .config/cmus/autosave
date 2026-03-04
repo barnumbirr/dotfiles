@@ -80,7 +80,7 @@ set format_treewin=  %l
 set format_treewin_artist=%a
 set icecast_default_charset=ISO-8859-1
 set id3_default_charset=ISO-8859-1
-set ignore_duplicates=false
+set ignore_duplicates=true
 set input.aac.priority=50
 set input.cdio.cddb_url=freedb.freedb.org:8880
 set input.cdio.priority=50
@@ -118,7 +118,7 @@ set resume=false
 set rewind_offset=5
 set scroll_offset=2
 set search_resets_position=true
-set set_term_title=false
+set set_term_title=true
 set show_all_tracks=true
 set show_current_bitrate=false
 set show_hidden=false
@@ -199,13 +199,16 @@ bind common l seek +5
 bind common left seek -5
 bind common m toggle aaa_mode
 bind common mlb_click_bar player-pause
+bind common mlb_click_bar_right player-pause
 bind common mlb_click_selected win-activate
 bind common mouse_scroll_down win-down
 bind common mouse_scroll_down_bar seek -5
-bind common mouse_scroll_down_title right-view
+bind common mouse_scroll_down_bar_right vol -1%
+bind common mouse_scroll_down_title right-view -n
 bind common mouse_scroll_up win-up
 bind common mouse_scroll_up_bar seek +5
-bind common mouse_scroll_up_title left-view
+bind common mouse_scroll_up_bar_right vol +1%
+bind common mouse_scroll_up_title left-view -n
 bind common n search-next
 bind common o toggle play_sorted
 bind common p win-mv-after

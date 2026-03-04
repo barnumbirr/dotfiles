@@ -3,62 +3,56 @@
 # nfo - dead simple NFO viewer
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] FILE
+Usage: $PROG_NAME [options] FILE
 
+Display NFO files (cp437 encoded) in the terminal.
+
+Options:
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 EOF
 }
 
-nfo() {
-  ICONV=$(command -v iconv)
+main() {
+  [ -f "$1" ] || die "the argument is not a file or does not exist"
 
-  if [ -f "${1}" ]; then
-    if [ "$(echo "${1}" | rev | cut -d. -f1 | rev)" = "nfo" ]; then
-      "${ICONV}" -f cp437 "${1}"
-    else
-      echo "The file does not look like an NFO."
-      exit 1
-    fi
-  else
-    echo "The argument is not a file or does not exist."
-    exit 1
-  fi
+  case "${1##*.}" in
+    [Nn][Ff][Oo]) ;;
+    *)   die "the file does not look like an NFO" ;;
+  esac
 
-  unset ICONV
+  iconv -f cp437 "$1"
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  if [ -z "$1" ]; then
-    echo "$(basename "${0}"): FILE is required."
-    echo "Try '$(basename "${0}") -h' for more information."
-    exit 1
-  fi
+  [ "${1-}" ] || die "FILE is required.\nTry '$PROG_NAME -h' for more information."
 
-  nfo "$@"
+  main "$@"
 }
 
 parse_params "$@"

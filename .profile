@@ -19,22 +19,24 @@ fi
 # set PATH so it includes user's private bin if it exists
 if [ -d "$HOME/bin" ]; then
     export XDG_BIN_HOME="$HOME/bin"
-    [[ ":$PATH:" != *"$HOME/bin"* ]] && PATH="$HOME/bin:${PATH}"
-    /usr/bin/chmod -R +x "$HOME/bin"
+    case ":$PATH:" in *"$HOME/bin"*) ;; *) PATH="$HOME/bin:${PATH}" ;; esac
+    find "$HOME/bin" -type f ! -name '_*' -exec /usr/bin/chmod +x {} +
 fi
 
 # set PATH so it includes user's private bin if it exists
 if [ -d "$HOME/.local/bin" ]; then
     export XDG_LOCAL_BIN_HOME="$HOME/.local/bin"
-    [[ ":$PATH:" != *"$HOME/.local/bin"* ]] && PATH="$HOME/.local/bin:${PATH}"
-    /usr/bin/chmod -R +x "$HOME/.local/bin"
+    case ":$PATH:" in *"$HOME/.local/bin"*) ;; *) PATH="$HOME/.local/bin:${PATH}" ;; esac
+    find "$HOME/.local/bin" -type f ! -name '_*' -exec /usr/bin/chmod +x {} +
 fi
 
 # set PATH so it includes user's private sbin if it exists
 if [ -d "$HOME/.local/sbin" ]; then
     export XDG_LOCAL_SBIN_HOME="$HOME/.local/sbin"
-    [[ ":$PATH:" != *"$HOME/.local/sbin"* ]] && PATH="$HOME/.local/sbin:${PATH}"
-    /usr/bin/chmod -R +x "$HOME/.local/sbin"
+    case ":$PATH:" in *"$HOME/.local/sbin"*) ;; *) PATH="$HOME/.local/sbin:${PATH}" ;; esac
+    find "$HOME/.local/sbin" -type f ! -name '_*' -exec /usr/bin/chmod +x {} +
 fi
 
-export PATH=$PATH:/usr/local/zig
+if [ -d /usr/local/zig ]; then
+    export PATH=$PATH:/usr/local/zig
+fi

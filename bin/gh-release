@@ -1,61 +1,63 @@
 #!/bin/sh
 #
 # gh-release - Get latest release version from Github repository
-# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c
 #
+
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
 
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] USERNAME/REPO
+Usage: $PROG_NAME [options] USERNAME/REPO
 
+Fetch the latest release version from a GitHub repository.
+
+Options:
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 EOF
 }
 
 main() {
-  CURL=$(command -v curl)
+  _main_auth=""
+  [ -n "${GITHUB_TOKEN-}" ] && _main_auth="Authorization: token ${GITHUB_TOKEN}"
 
-  VERSION=$("${CURL}" --silent "https://api.github.com/repos/${1}/releases/latest" |
-  grep -Po "(?<=\"tag_name\": \").*(?=\")")
+  _main_resp=$(curl --silent --fail \
+    ${_main_auth:+-H "$_main_auth"} \
+    "https://api.github.com/repos/${1}/releases/latest") || \
+    die "failed to fetch release info for $1"
 
-  if [ $? -eq 0 ]; then
-    echo "${VERSION} (https://github.com/${1})"
-  else
-    echo "An error occurred. Please try again."
+  _main_version=$(echo "$_main_resp" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+
+  if [ -z "$_main_version" ]; then
+    die "could not parse release version for $1"
   fi
 
-  unset CURL
-  unset VERSION
+  echo "$_main_version (https://github.com/${1})"
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  if [ -z "$1" ]; then
-    echo "$(basename "${0}"): USERNAME/REPO is required."
-    echo "Try '$(basename "${0}") -h' for more information."
-    exit 1
-  fi
+  [ "${1-}" ] || die "USERNAME/REPO is required.\nTry '$PROG_NAME -h' for more information."
 
   main "$@"
 }

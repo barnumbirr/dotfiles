@@ -3,57 +3,51 @@
 # cert - Get certificate information for a given domain
 #
 
+set -eu
+
+PROG_NAME="${0##*/}"
+
+msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
+
+die() {
+  _die_rc=1
+  case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
+  msg "error: $*"
+  exit "$_die_rc"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "${0}") [options] DOMAIN
+Usage: $PROG_NAME [options] DOMAIN
 
+Retrieve and display TLS certificate information for a domain.
+
+Options:
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 EOF
 }
 
 main() {
-  OPENSSL=$(command -v openssl)
-  RESULT=$(echo | "${OPENSSL}" s_client -showcerts -servername "${1}" -connect "${1}:443" 2>/dev/null)
-
-  if [ $? -eq 0 ]; then
-    echo "${RESULT}" | "${OPENSSL}" x509 -noout -text
+  if _main_result=$(echo | openssl s_client -showcerts -servername "$1" -connect "$1:443" 2>/dev/null); then
+    echo "$_main_result" | openssl x509 -noout -text
   else
-    echo "Error: Failed to retrieve certificate information for ${1}."
-    exit 1
+    die "failed to retrieve certificate information for $1"
   fi
-
-  unset OPENSSL
-  unset RESULT
 }
 
 parse_params() {
-  while true; do
-    case "${1-}" in
-      "-h"|"--help")
-        usage
-        exit 0
-        ;;
-      "-V"|"--verbose")
-        set -x
-        ;;
-      -?*)
-        echo "$(basename "${0}"): Invalid option ${1}"
-        echo "Try '$(basename "${0}") -h' for more information."
-        exit 1
-        ;;
-      *)
-        break
-        ;;
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h | --help)    usage; exit 0 ;;
+      -V | --verbose) set -x ;;
+      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   break ;;
     esac
     shift
   done
 
-  if [ -z "$1" ]; then
-    echo "$(basename "${0}"): DOMAIN is required."
-    echo "Try '$(basename "${0}") -h' for more information."
-    exit 1
-  fi
+  [ "${1-}" ] || die "DOMAIN is required.\nTry '$PROG_NAME -h' for more information."
 
   main "$@"
 }

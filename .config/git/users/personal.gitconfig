@@ -1,8 +1,9 @@
 [user]
   name = Martin Simon
   email = martin@simon.tf
-  sshCommand = "ssh -i ~/.ssh/id_martin@simon.tf"
   signingkey = D0132247B7A2BFC9
+[core]
+  sshCommand = "ssh -i ~/.ssh/id_personal"
 [commit]
   gpgsign = true
 [tag]

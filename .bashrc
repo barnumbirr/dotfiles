@@ -26,7 +26,7 @@ HISTFILESIZE=
 # erasedups causes all previous lines matching the current line to be removed
 # from the history list before that line is saved.
 # See bash(1) for more options
-HISTCONTROL=ignoreboth
+HISTCONTROL=ignorespace:erasedups
 
 # If we're disconnected, capture whatever is in history
 trap 'history -a' SIGHUP
@@ -50,8 +50,7 @@ shopt -s cdspell
 shopt -s dirspell
 
 # Disable the bell
-iatest=$(expr index "$-" i)
-if [[ "$iatest" -gt 0 ]]; then bind "set bell-style visible"; fi
+bind "set bell-style visible"
 
 # Make less more friendly for non-text input files, see lesspipe(1)
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
@@ -77,8 +76,7 @@ flash () {
 }
 
 # Set default editor
-E=$(which micro)
-export EDITOR="${E}"
+export EDITOR=$(command -v micro || command -v nano)
 
 # Set micro editor true color support
 export COLORTERM=truecolor
@@ -142,55 +140,42 @@ if command -v git > /dev/null 2>&1; then
     esac
 fi
 
+# Check for git once at startup
+_has_git=$(command -v git > /dev/null 2>&1 && echo 1)
+
 # Get current branch in Git repository
 parse_git_branch() {
-    if command -v git > /dev/null 2>&1; then
-        BRANCH=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
-        if [ ! "${BRANCH}" == "" ]
-        then
-            STAT=$(parse_git_dirty)
-            echo " (${BRANCH}${STAT})"
-        else
-            echo ""
-        fi
+    [[ -z "$_has_git" ]] && return
+    local branch
+    branch=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
+    if [[ -n "$branch" ]]; then
+        local stat
+        stat=$(parse_git_dirty)
+        echo " (${branch}${stat})"
     fi
 }
 
 # Get current status of Git repository
 parse_git_dirty() {
-    if command -v git > /dev/null 2>&1; then
-        status=$(git status 2>&1 | tee)
-        dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
-        untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
-        ahead=$(echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?")
-        newfile=$(echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?")
-        renamed=$(echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?")
-        deleted=$(echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?")
-        bits=''
-        if [ "${renamed}" == "0" ]; then
-            bits=">${bits}"
-        fi
-        if [ "${ahead}" == "0" ]; then
-            bits="*${bits}"
-        fi
-        if [ "${newfile}" == "0" ]; then
-            bits="+${bits}"
-        fi
-        if [ "${untracked}" == "0" ]; then
-            bits="?${bits}"
-        fi
-        if [ "${deleted}" == "0" ]; then
-            bits="x${bits}"
-        fi
-        if [ "${dirty}" == "0" ]; then
-            bits="!${bits}"
-        fi
-        if [ ! "${bits}" == "" ]; then
-            echo " ${bits}"
-        else
-            echo ""
-        fi
-    fi
+    [[ -z "$_has_git" ]] && return
+    local status bits='' has_renamed=0 has_new=0 has_untracked=0 has_deleted=0 has_modified=0
+    status=$(git status --branch --porcelain 2>/dev/null) || return
+    while IFS= read -r line; do
+        case "${line:0:2}" in
+            \#\#) [[ "$line" == *"[ahead"* ]] && bits="*" ;;
+            R?)          has_renamed=1 ;;
+            A?|?A)       has_new=1 ;;
+            \?\?)        has_untracked=1 ;;
+            D?|?D)       has_deleted=1 ;;
+            M?|?M|" M")  has_modified=1 ;;
+        esac
+    done <<< "$status"
+    ((has_renamed))  && bits=">${bits}"
+    ((has_new))      && bits="+${bits}"
+    ((has_untracked)) && bits="?${bits}"
+    ((has_deleted))  && bits="x${bits}"
+    ((has_modified)) && bits="!${bits}"
+    [[ -n "$bits" ]] && echo " ${bits}"
 }
 
 # Beautiful command prompt.
@@ -207,17 +192,32 @@ fi
 st () {
     case $OS in
         *microsoft*)
-            # CSI 22/23 don't seem to be supported in Windows Terminal 1.18.3181.0
-            # Push current window title to stack
-            # echo -ne '\e[22t'
             /mnt/c/Program\ Files/Sublime\ Text/subl.exe "${@:-.}"
-            # Revert to previous window title after the ssh command
-            #echo -ne '\e[23t'
-            # Manually set title
-            echo -ne "\033]0;Debian\a"
+            # Windows Terminal changes the tab title to the .exe path;
+            # CSI 22t/23t title stacking is still unsupported (WT #14575),
+            # so reset the title using the WSL distro name.
+            echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
             ;;
         Linux*)
-            /usr/bin/subl "${@:-.}"
+            command subl "${@:-.}"
+            ;;
+        *)
+            ;;
+    esac
+}
+
+# Cross-platform Zed CLI
+zed () {
+    case $OS in
+        *microsoft*)
+            command zed "${@:-.}"
+            # Windows Terminal changes the tab title to the .exe path;
+            # CSI 22t/23t title stacking is still unsupported (WT #14575),
+            # so reset the title using the WSL distro name.
+            echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
+            ;;
+        Linux*)
+            command zed "${@:-.}"
             ;;
         *)
             ;;
@@ -234,26 +234,37 @@ if command -v keychain > /dev/null 2>&1; then
         if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
             echo "Stale agent file found. Spawning new agent… "
             eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
-            eval "$(keychain --stop others --quiet --quick --eval\
-                    --agents gpg,ssh --inherit any --timeout 31622400\
-                    "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work"\
+            eval "$(keychain --stop others --quiet --quick --eval \
+                    --agents gpg,ssh --inherit any --timeout 31622400 \
+                    "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
                     D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
         fi
     else
         echo "Starting ssh-agent"
         eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
-        eval "$(keychain --stop others --quiet --quick --eval --agents gpg,ssh\
-            --inherit any --timeout 31622400\
-            "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work"\
-            D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
+        eval "$(keychain --stop others --quiet --quick --eval \
+                --agents gpg,ssh --inherit any --timeout 31622400 \
+                "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
+                D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
     fi
 fi
 
 # Reset the window title after SSH
 ssh() {
-    echo -ne '\e[22t'
-    /usr/bin/ssh "$@"
-    echo -ne '\e[23t'
+    case $OS in
+        *microsoft*)
+            /usr/bin/ssh "$@"
+            echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
+            ;;
+        Linux*)
+            echo -ne '\e[22t'
+            /usr/bin/ssh "$@"
+            echo -ne '\e[23t'
+            ;;
+        *)
+            /usr/bin/ssh "$@"
+            ;;
+    esac
 }
 
 # Generate passwords
@@ -269,7 +280,7 @@ up () {
         do
             d=$d/..
         done
-    d=$(echo $d | sed 's/^\///')
+    d=${d#/}
     if [ -z "$d" ]; then
         d=..
     fi
@@ -312,4 +323,8 @@ if [[ -f "$HOME/.env" ]]; then
     #source <(sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g" "$HOME"/.env)
     source <(grep -vE '^\s*#|^\s*$' "$HOME/.env" | sed "s/'/'\\\\''/g")
     set +a
+fi
+
+if [ -f "$HOME"/.cargo/env ]; then
+    source "$HOME"/.cargo/env
 fi
