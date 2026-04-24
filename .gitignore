@@ -1,6 +1,7 @@
 *.tmp
 *.pyc
 *.o
+*.bak
 
 /.dotfiles
 /.local/
@@ -8,9 +9,15 @@
 # unclutter untracked
 /.aws
 /.bash_history
+/.bash_logout
 /.cache
 /.ccache
+/.claude
+/.claude.json
 /.config/cmus/
+/.config/dconf/
+/.config/evolution/
+/.config/htop/
 /.config/micro/backups
 /.config/micro/buffers
 /.config/micro/init.lua
@@ -19,8 +26,13 @@
 /.config/pulse/
 /.config/Slack/
 /.config/sublime-text/
+/.config/Thunar/
 /.config/.vlc/
 /.config/.wrangler/
+/.config/xarchiver/
+/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml
+/.config/xournalpp/
+/.config/zed/
 /Desktop/
 /.docker
 /Downloads/
@@ -35,9 +47,23 @@
 /.pki/
 /.python_history
 /.ssh
+/.sudo_as_admin_successful
 /.terraform.d
 /.todo
 /.thunderbird/
 /.vim*
+/.wallpaper/*_blurred.png
 /.wget-hsts
 /.wrangler
+/.Xauthority
+/.xsession-errors
+/.zvm
+/code
+/ly-session.log
+
+# machine-local overlay files (loaded conditionally by tracked configs)
+/.Xresources.local
+/.bashrc.local
+/.config/i3/config.local
+/.config/polybar/config.local.ini
+/.config/rofi/config.local.rasi
