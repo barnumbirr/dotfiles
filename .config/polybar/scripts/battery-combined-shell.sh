@@ -1,37 +1,33 @@
 #!/bin/sh
 
-path_ac="/sys/class/power_supply/AC"
-path_battery_0="/sys/class/power_supply/BAT0"
-path_battery_1="/sys/class/power_supply/BAT1"
+# Sum remaining charge across all batteries and report AC state.
+# Detects AC and battery path names dynamically, and falls back
+# from charge_* (ACPI) to energy_* (older firmware).
+
+ac_path=""
+batteries=""
+
+for dir in /sys/class/power_supply/*/; do
+    case "$(cat "${dir}type" 2>/dev/null)" in
+        Mains)    [ -z "$ac_path" ] && ac_path="${dir%/}" ;;
+        Battery)  batteries="$batteries ${dir%/}" ;;
+    esac
+done
 
 ac=0
-battery_level_0=0
-battery_level_1=0
-battery_max_0=0
-battery_max_1=0
+[ -r "$ac_path/online" ] && ac=$(cat "$ac_path/online")
 
-if [ -f "$path_ac/online" ]; then
-    ac=$(cat "$path_ac/online")
-fi
-
-if [ -f "$path_battery_0/energy_now" ]; then
-    battery_level_0=$(cat "$path_battery_0/energy_now")
-fi
-
-if [ -f "$path_battery_0/energy_full" ]; then
-    battery_max_0=$(cat "$path_battery_0/energy_full")
-fi
-
-if [ -f "$path_battery_1/energy_now" ]; then
-    battery_level_1=$(cat "$path_battery_1/energy_now")
-fi
-
-if [ -f "$path_battery_1/energy_full" ]; then
-    battery_max_1=$(cat "$path_battery_1/energy_full")
-fi
-
-battery_level=$(($battery_level_0 + $battery_level_1))
-battery_max=$(($battery_max_0 + $battery_max_1))
+battery_level=0
+battery_max=0
+for bat in $batteries; do
+    if [ -r "$bat/charge_now" ] && [ -r "$bat/charge_full" ]; then
+        battery_level=$((battery_level + $(cat "$bat/charge_now")))
+        battery_max=$((battery_max + $(cat "$bat/charge_full")))
+    elif [ -r "$bat/energy_now" ] && [ -r "$bat/energy_full" ]; then
+        battery_level=$((battery_level + $(cat "$bat/energy_now")))
+        battery_max=$((battery_max + $(cat "$bat/energy_full")))
+    fi
+done
 
 if [ "$battery_max" -eq 0 ]; then
     echo "No battery"

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -e
+
+I3_CONFIG="$HOME/.config/i3/config"
+BLUR_SIGMA=25
+
+# Extract wallpaper path from i3 config
+WALLPAPER=$(grep -Eo 'feh .* --bg-(scale|fill|center) [^ ]+' "$I3_CONFIG" | awk '{print $NF}')
+
+if [ -z "$WALLPAPER" ]; then
+    echo "No wallpaper defined in i3 config."
+    exit 1
+fi
+
+WALLPAPER="${WALLPAPER/#\~/$HOME}"
+
+if [ ! -f "$WALLPAPER" ]; then
+    echo "Wallpaper file not found: $WALLPAPER"
+    exit 1
+fi
+
+WALLPAPER_DIR=$(dirname "$WALLPAPER")
+WALLPAPER_BASENAME=$(basename "$WALLPAPER")
+WALLPAPER_NAME="${WALLPAPER_BASENAME%.*}"
+
+SCREEN_RESOLUTION=$(xrandr | grep '*' | awk '{print $1}')
+if [ -z "$SCREEN_RESOLUTION" ]; then
+    echo "Unable to determine screen resolution."
+    exit 1
+fi
+
+BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred.png"
+
+# Only generate if it doesn't exist OR source wallpaper is newer
+if [ ! -f "$BLURRED_WALLPAPER" ] || [ "$WALLPAPER" -nt "$BLURRED_WALLPAPER" ]; then
+    echo "Generating blurred wallpaper..."
+    ffmpeg -y -i "$WALLPAPER" -vf "gblur=sigma=$BLUR_SIGMA,scale=$SCREEN_RESOLUTION" "$BLURRED_WALLPAPER"
+else
+    echo "Blurred wallpaper is up to date."
+fi
+

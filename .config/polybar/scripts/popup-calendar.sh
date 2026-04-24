@@ -1,6 +1,14 @@
 #!/bin/sh
 
-BAR_HEIGHT=30  # polybar height
+# Read polybar bar height so the popup aligns regardless of user bar height.
+BAR_HEIGHT=30
+for candidate in "$HOME/.config/polybar/config.ini" "$HOME/.config/polybar/config"; do
+    if [ -f "$candidate" ]; then
+        detected=$(awk -F= '/^[[:space:]]*height[[:space:]]*=/ {gsub(/[[:space:]]|px/, "", $2); print $2; exit}' "$candidate")
+        [ -n "$detected" ] && BAR_HEIGHT=$detected
+        break
+    fi
+done
 BORDER_SIZE=1  # border size from your wm settings
 YAD_WIDTH=222  # 222 is minimum possible value
 YAD_HEIGHT=193 # 193 is minimum possible value

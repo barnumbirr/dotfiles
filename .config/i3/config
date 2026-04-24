@@ -184,7 +184,9 @@ bindsym $mod+Print exec scrot -q 88 'screenshot-%d-%m-%Y_%H-%M-%S_$wx$h.png' -e 
 bindsym $mod+shift+Print exec gnome-screenshot -i
 
 # Custom lockscreen
-bindsym $mod+shift+x exec ~/.config/i3lock/lock
+exec_always --no-startup-id ~/.config/i3lock/wallpaper
+exec --no-startup-id xss-lock --transfer-sleep-lock -- ~/.config/i3lock/lock
+bindsym $mod+shift+x exec --no-startup-id ~/.config/i3lock/lock
 
 for_window [class="Yad" title="yad-calendar"] floating enable
 
