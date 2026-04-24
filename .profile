@@ -36,7 +36,3 @@ if [ -d "$HOME/.local/sbin" ]; then
     case ":$PATH:" in *"$HOME/.local/sbin"*) ;; *) PATH="$HOME/.local/sbin:${PATH}" ;; esac
     find "$HOME/.local/sbin" -type f ! -name '_*' -exec /usr/bin/chmod +x {} +
 fi
-
-if [ -d /usr/local/zig ]; then
-    export PATH=$PATH:/usr/local/zig
-fi
