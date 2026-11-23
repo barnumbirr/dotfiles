@@ -71,7 +71,6 @@ clean_exit() {
 
 parse_params() {
   OPT_FORCE=false
-  OPT_QUIET=false
 
   trap 'clean_exit' EXIT TERM
   trap 'clean_exit HUP' HUP
@@ -82,7 +81,7 @@ parse_params() {
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
       --version)      printf '%s v%s\n' "$PROG_NAME" "$VERSION"; exit 0 ;;
-      -q | --quiet)   OPT_QUIET=true; info() { :; } ;;
+      -q | --quiet)   info() { :; } ;;
       -f | --force)   OPT_FORCE=true ;;
       -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
