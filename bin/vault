@@ -24,46 +24,83 @@ Usage: $PROG_NAME [options] [FILE]
 Upload a file to vault.tf. Reads from stdin if no FILE is given.
 
 Options:
-  -V, --verbose    output debug information
-  -h, --help       display this help message and exit
+  -d, --delete KEY       delete a document by key
+  -e, --expiration TTL   set expiration in seconds (min 60)
+  -V, --verbose          output debug information
+  -h, --help             display this help message and exit
+
+Environment:
+  VAULT_SECRET_KEY       authorization secret (required)
+  VAULT_URL              base URL (default: https://vault.tf)
 EOF
 }
 
-_extract_key() {
+_json_field() {
   if command -v jq >/dev/null 2>&1; then
-    echo "$1" | jq -r .key
+    printf '%s' "$1" | jq -re ".$2"
   else
-    echo "$1" | sed 's/.*"key":"\([^"]*\)".*/\1/'
+    printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" | grep .
   fi
 }
 
+upload() {
+  _upload_resp=$(curl --silent --fail-with-body --data-binary @"${1:--}" \
+    -H "Authorization: $VAULT_SECRET_KEY" \
+    ${EXPIRATION:+-H "Expiration: $EXPIRATION"} \
+    "$_url/documents") || \
+    die "failed to paste: $(_json_field "$_upload_resp" message 2>/dev/null || echo "unknown error")"
+
+  _upload_key=$(_json_field "$_upload_resp" key 2>/dev/null) || die "failed to parse response"
+
+  echo "$_url/$_upload_key"
+}
+
+delete() {
+  _delete_resp=$(curl --silent --fail-with-body -X DELETE \
+    -H "Authorization: $VAULT_SECRET_KEY" \
+    "$_url/documents/$1") || \
+    die "failed to delete: $(_json_field "$_delete_resp" message 2>/dev/null || echo "unknown error")"
+
+  _json_field "$_delete_resp" message 2>/dev/null || echo "deleted '$1'"
+}
+
 main() {
-  [ "${VAULT_SECRET_KEY-}" ] || die "VAULT_SECRET_KEY is not set"
+  _url="${VAULT_URL:-https://vault.tf}"
 
-  _main_url="https://vault.tf"
-
-  _main_resp=$(curl --silent --fail --data-binary @"${1:--}" \
-    -H "Authorization: $VAULT_SECRET_KEY" "$_main_url/documents") || \
-    die "failed to paste"
-
-  _main_key=$(_extract_key "$_main_resp")
-  [ -n "$_main_key" ] || die "failed to parse response"
-
-  echo "$_main_url/$_main_key"
+  if [ -n "$DELETE_KEY" ]; then
+    delete "$DELETE_KEY"
+  else
+    upload "${1:--}"
+  fi
 }
 
 parse_params() {
+  EXPIRATION=""
+  DELETE_KEY=""
+
   while [ "$#" -gt 0 ]; do
     case "$1" in
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
+      -e | --expiration)
+        [ "${2-}" ] || die "missing value after $1"
+        EXPIRATION="$2"
+        shift
+        ;;
+      -d | --delete)
+        [ "${2-}" ] || die "missing value after $1"
+        DELETE_KEY="$2"
+        shift
+        ;;
       -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift
   done
 
-  main "${1:--}"
+  [ "${VAULT_SECRET_KEY-}" ] || die "VAULT_SECRET_KEY is not set.\nTry '$PROG_NAME -h' for more information."
+
+  main "$@"
 }
 
 parse_params "$@"
