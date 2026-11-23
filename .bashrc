@@ -28,8 +28,9 @@ HISTFILESIZE=
 # See bash(1) for more options
 HISTCONTROL=ignorespace:erasedups
 
-# If we're disconnected, capture whatever is in history
-trap 'history -a' SIGHUP
+# Flush history after every command so a crashed or killed terminal
+# doesn't lose its session
+PROMPT_COMMAND='history -a'
 
 # Append to the history file, don't overwrite it
 shopt -s histappend
@@ -76,7 +77,8 @@ flash () {
 }
 
 # Set default editor
-export EDITOR=$(command -v micro || command -v nano)
+EDITOR=$(command -v micro || command -v nano)
+export EDITOR
 
 # Set micro editor true color support
 export COLORTERM=truecolor
@@ -119,25 +121,28 @@ if [ -f "$HOME"/.aliases ]; then
 fi
 
 # Bash completion for `dots` alias
-_completion_loader git
-complete -o bashdefault -o default -o nospace -F __git_wrap__git_main dots
+if declare -F _completion_loader > /dev/null; then
+    _completion_loader git
+    complete -o bashdefault -o default -o nospace -F __git_wrap__git_main dots
+fi
 
 # If running in console 1, start X display server
 if [[ ! $DISPLAY && $XDG_VTNR -eq 1 ]] ; then
     exec startx
 fi
 
-# Cross-platform .gitconfig
+# Cross-platform .gitconfig (only write when the value changes)
 OS=$(uname -a)
 if command -v git > /dev/null 2>&1; then
     case $OS in
-        *microsoft*)
-            git config --global include.path "$HOME"/.config/git/wsl.gitconfig
-            ;;
-        Linux*)
-            git config --global include.path "$HOME"/.config/git/linux.gitconfig
-            ;;
+        *microsoft*) _gitinc="$HOME/.config/git/wsl.gitconfig" ;;
+        Linux*)      _gitinc="$HOME/.config/git/linux.gitconfig" ;;
+        *)           _gitinc="" ;;
     esac
+    if [ -n "$_gitinc" ] && [ "$(git config --global include.path)" != "$_gitinc" ]; then
+        git config --global include.path "$_gitinc"
+    fi
+    unset _gitinc
 fi
 
 # Check for git once at startup
@@ -167,7 +172,7 @@ parse_git_dirty() {
             A?|?A)       has_new=1 ;;
             \?\?)        has_untracked=1 ;;
             D?|?D)       has_deleted=1 ;;
-            M?|?M|" M")  has_modified=1 ;;
+            M?|?M)       has_modified=1 ;;
         esac
     done <<< "$status"
     ((has_renamed))  && bits=">${bits}"
@@ -179,7 +184,7 @@ parse_git_dirty() {
 }
 
 # Beautiful command prompt.
-export PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w$(parse_git_branch)]\$ '
+PS1='[${debian_chroot:+($debian_chroot)}\u@\h:\w$(parse_git_branch)]\$ '
 
 # Set dircolors
 if [[ $(uname) == 'Darwin' ]]; then
@@ -225,51 +230,38 @@ zed () {
 }
 
 # Fix 'gpg: signing failed: Inappropriate ioctl for device'
-export GPG_TTY=$(tty)
+GPG_TTY=$(tty)
+export GPG_TTY
 
-# Start SSH Agent and add keys
-if command -v keychain > /dev/null 2>&1; then
-    if [ -f "$HOME"/.ssh/agent.env ]; then
-        source "$HOME"/.ssh/agent.env > /dev/null
-        if ! kill -0 "$SSH_AGENT_PID" > /dev/null 2>&1; then
-            echo "Stale agent file found. Spawning new agent… "
-            eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
-            eval "$(keychain --stop others --quiet --quick --eval \
-                    --agents gpg,ssh --inherit any --timeout 31622400 \
-                    "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
-                    D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
-        fi
-    else
-        echo "Starting ssh-agent"
-        eval "$(ssh-agent | tee "$HOME"/.ssh/agent.env)"
-        eval "$(keychain --stop others --quiet --quick --eval \
-                --agents gpg,ssh --inherit any --timeout 31622400 \
-                "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
-                D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
-    fi
+# Start SSH Agent and add keys (keychain 2.8.5 vendored in ~/bin)
+if [ -x "$HOME/bin/keychain" ]; then
+    eval "$("$HOME/bin/keychain" --stop others --quiet --quick --eval \
+            --agents gpg,ssh --ignore-missing --timeout 525600 \
+            "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
+            D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
 fi
 
 # Reset the window title after SSH
 ssh() {
     case $OS in
         *microsoft*)
-            /usr/bin/ssh "$@"
+            command ssh "$@"
             echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
             ;;
         Linux*)
             echo -ne '\e[22t'
-            /usr/bin/ssh "$@"
+            command ssh "$@"
             echo -ne '\e[23t'
             ;;
         *)
-            /usr/bin/ssh "$@"
+            command ssh "$@"
             ;;
     esac
 }
 
 # Generate passwords
 pgen() {
-    < /dev/urandom tr -dc '[:graph:]' | head -c "${1:-24}"; echo
+    < /dev/urandom LC_ALL=C tr -dc '[:graph:]' | head -c "${1:-24}"; echo
 }
 
 # Go up a specified number of directories (i.e. `up 4`)
@@ -289,38 +281,31 @@ up () {
 
 # Backup 'target' $1 to 'target.bak' using either cp or mv
 bak() {
-    local mode="cp"
-    local target="${1%/}"
+    local -a cmd=(cp -a)
+    [[ "$1" == "-m" ]] && { cmd=(mv); shift; }
+    local target="${1%/}" # Remove trailing / if present
 
-    if [[ "$1" == "-m" ]]; then
-        mode="mv"
-        shift
-        target="${1%/}"
-    fi
+    [[ -n "$target" ]] || { echo "Usage: bak [-m] <target>"; return 1; }
 
-    if [[ -z "$target" ]]; then
-        echo "Usage: bak [-m] <target>"
-        return 1
-    fi
-
-    "$mode" --verbose "$target" "$target.bak"
+    "${cmd[@]}" -v "$target" "$target.bak"
 }
 
 # Revert previously bak'd 'target'
 unbak() {
     local target="${1%/}" # Remove trailing / if present
-    if [[ "$target" == *.bak ]]; then
-        mv --verbose --interactive "$target" "${target%.bak}"
-    else
-        echo "No .bak extension, ignoring '$target'"
-    fi
+    local restored="${target%.bak}"
+
+    [[ -n "$target" ]]        || { echo "Usage: unbak <target>.bak"; return 1; }
+    [[ "$target" == *.bak ]]  || { echo "No .bak extension, ignoring '$target'"; return 1; }
+    [[ ! -e "$restored" ]]    || { echo "'$restored' already exists, refusing to restore '$target'"; return 1; }
+
+    mv -v "$target" "$restored"
 }
 
 # Load ENV variables from file
 # https://stackoverflow.com/a/66118031
 if [[ -f "$HOME/.env" ]]; then
     set -a
-    #source <(sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g" "$HOME"/.env)
     source <(grep -vE '^\s*#|^\s*$' "$HOME/.env" | sed "s/'/'\\\\''/g")
     set +a
 fi
