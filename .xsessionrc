@@ -1,7 +1,8 @@
 #!/bin/sh
 
-# Load Xresources
+# Load Xresources (machine-local overrides merged on top)
 [ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"
+[ -f "$HOME/.Xresources.local" ] && xrdb -merge "$HOME/.Xresources.local"
 
 # Use US International (altgr variant: dead keys only when AltGr held; avoids '+s → ś)
 setxkbmap -layout us -variant altgr-intl

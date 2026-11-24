@@ -158,6 +158,9 @@ exec --no-startup-id allow_rgb10_configs=false picom -b
 # Launch network-manager applet
 exec --no-startup-id nm-applet
 
+# Launch blueman-applet
+exec --no-startup-id blueman-applet
+
 # Launch feh to set background
 exec --no-startup-id feh --no-fehbg --bg-scale ~/.wallpaper/space.png
 
@@ -176,17 +179,20 @@ bindsym XF86AudioLowerVolume exec amixer set Master 5%- #decrease sound volume
 bindsym XF86AudioMute exec amixer set Master toggle # mute sound
 
 # Screen brightness controls using light
-bindsym XF86MonBrightnessUp exec light -s "sysfs/backlight/auto" -A 5
-bindsym XF86MonBrightnessDown exec light -s "sysfs/backlight/auto" -U 5
+bindsym XF86MonBrightnessUp exec --no-startup-id light -s "sysfs/backlight/auto" -A 5
+bindsym XF86MonBrightnessDown exec --no-startup-id light -s "sysfs/backlight/auto" -U 5
 
 # Screenshots
 bindsym $mod+Print exec scrot -q 88 'screenshot-%d-%m-%Y_%H-%M-%S_$wx$h.png' -e 'mv $f ~/Pictures/Screenshots/'
 bindsym $mod+shift+Print exec gnome-screenshot -i
 
-# Custom lockscreen
+# Custom lockscreen: xss-lock runs the locker (suspend, loginctl lock-session); xidlehook locks after 10 min idle
+# and blanks 1 min later (not while fullscreen or playing audio), so X's own timers are off
 exec_always --no-startup-id ~/.config/i3lock/wallpaper
+exec_always --no-startup-id xset s off dpms 0 0 0
 exec --no-startup-id xss-lock --transfer-sleep-lock -- ~/.config/i3lock/lock
-bindsym $mod+shift+x exec --no-startup-id ~/.config/i3lock/lock
+exec --no-startup-id xidlehook --not-when-fullscreen --not-when-audio --detect-sleep --timer 600 'loginctl lock-session' '' --timer 60 'xset dpms force off' ''
+bindsym $mod+shift+x exec --no-startup-id loginctl lock-session && sleep 60 && pgrep -x i3lock > /dev/null && xset dpms force off
 
 for_window [class="Yad" title="yad-calendar"] floating enable
 

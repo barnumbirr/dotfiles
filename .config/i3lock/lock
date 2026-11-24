@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -20,5 +20,15 @@ WALLPAPER_NAME="${WALLPAPER_BASENAME%.*}"
 
 BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred.png"
 
-# Lock using blurred wallpaper
-i3lock -i "$BLURRED_WALLPAPER" --ignore-empty-password --show-failed-attempts --pointer=win
+opts=(-i "$BLURRED_WALLPAPER" --ignore-empty-password --show-failed-attempts --pointer=win)
+
+# Before suspend xss-lock passes a sleep lock (bash: its fd may be above 9). i3lock must not inherit it;
+# closing ours once i3lock has forked (screen locked) lets suspend go ahead. Stay until unlock either way.
+if [ -e "/dev/fd/${XSS_SLEEP_LOCK_FD:--1}" ]; then
+    trap 'pkill -xu "$EUID" i3lock' TERM INT
+    i3lock "${opts[@]}" {XSS_SLEEP_LOCK_FD}<&-
+    exec {XSS_SLEEP_LOCK_FD}<&-
+    while pkill -0 -xu "$EUID" i3lock; do sleep 0.5; done
+else
+    exec i3lock -n "${opts[@]}"
+fi
