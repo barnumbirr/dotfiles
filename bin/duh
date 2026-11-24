@@ -7,12 +7,10 @@ set -eu
 
 PROG_NAME="${0##*/}"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -47,16 +45,16 @@ parse_params() {
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
       -d | --directory)
-        [ "${2-}" ] || die "missing value after $1"
+        [ "${2-}" ] || die 2 "missing value after $1"
         DIRECTORY="$2"
         shift
         ;;
       -n | --number)
-        [ "${2-}" ] || die "missing value after $1"
+        [ "${2-}" ] || die 2 "missing value after $1"
         NUMBER="$2"
         shift
         ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift

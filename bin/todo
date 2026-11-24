@@ -8,12 +8,10 @@ set -eu
 PROG_NAME="${0##*/}"
 TODOFILE="$HOME/.todo"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -35,7 +33,7 @@ EOF
 }
 
 cmd_add() {
-  [ "${1-}" ] || die "missing task description"
+  [ "${1-}" ] || die 2 "missing task description"
   printf '%s\n' "$1" >> "$TODOFILE"
 }
 
@@ -52,9 +50,9 @@ cmd_list() {
 }
 
 cmd_done() {
-  [ "${1-}" ] || die "missing task number"
+  [ "${1-}" ] || die 2 "missing task number"
   case "$1" in
-    *[!0-9]*) die "task number must be a positive integer" ;;
+    *[!0-9]*) die 2 "task number must be a positive integer" ;;
   esac
   _done_total=$(wc -l < "$TODOFILE")
   [ "$1" -ge 1 ] && [ "$1" -le "$_done_total" ] || die "task $1 does not exist"
@@ -67,7 +65,7 @@ cmd_remove() {
   read -r _rm_confirm
   case "$_rm_confirm" in
     y | Y)
-      > "$TODOFILE"
+      : > "$TODOFILE"
       echo "All tasks have been removed."
       ;;
     *)
@@ -109,13 +107,13 @@ parse_params() {
       r | rm | remove) cmd_remove; return ;;
       e | edit)      cmd_edit; return ;;
       +* | @*)       cmd_search "$1"; return ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME help' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME help' for more information." ;;
       *)   die "unknown command: $1\nTry '$PROG_NAME help' for more information." ;;
     esac
     shift
   done
 
-  die "missing command.\nTry '$PROG_NAME help' for more information."
+  die 2 "missing command.\nTry '$PROG_NAME help' for more information."
 }
 
 parse_params "$@"

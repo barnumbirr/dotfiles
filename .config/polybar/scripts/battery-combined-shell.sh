@@ -34,8 +34,7 @@ if [ "$battery_max" -eq 0 ]; then
     exit 0
 fi
 
-battery_percent=$(($battery_level * 100))
-battery_percent=$(($battery_percent / $battery_max))
+battery_percent=$((battery_level * 100 / battery_max))
 
 if [ "$ac" -eq 1 ]; then
     icon=""

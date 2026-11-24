@@ -4,10 +4,4 @@
   signingkey = EFCAAF15EC4016D0
 [core]
   sshCommand = "ssh -i ~/.ssh/id_doctena"
-[commit]
-  gpgsign = true
-[tag]
-  gpgsign = true
-[gpg]
-  program = gpg2
 

@@ -7,12 +7,10 @@ set -eu
 
 PROG_NAME="${0##*/}"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -160,13 +158,13 @@ parse_params() {
     case "$1" in
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift
   done
 
-  [ "${1-}" ] || die "HTTP_STATUS_CODE is required.\nTry '$PROG_NAME -h' for more information."
+  [ "${1-}" ] || die 2 "HTTP_STATUS_CODE is required.\nTry '$PROG_NAME -h' for more information."
 
   for _pp_code do
     main "$_pp_code"

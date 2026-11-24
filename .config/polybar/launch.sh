@@ -6,18 +6,11 @@ killall -q polybar
 # Wait until the processes have been shut down
 while pgrep -u $UID -x polybar >/dev/null; do sleep 1; done
 
-# Source: https://gitlab.dresrv.com/andrei/dotfiles/-/blob/sway-hidpi/dot_config/polybar/executable_launch.sh
-# Find and set CPU package
-# https://github.com/polybar/polybar/issues/2078
-for i in /sys/class/hwmon/hwmon*/temp*_input; do
-    name="$(<$(dirname $i)/name): $(cat ${i%_*}_label 2>/dev/null || echo $(basename ${i%_*}))"
-    if [ "$name" = "k10temp: Tctl" ]; then
-        export HWMON_PATH="$i"
-        break
-    elif [ "$name" = "coretemp: Package id 0" ]; then
-        export HWMON_PATH="$i"
-        break
-    fi
+# The CPU temperature sensor, by name: hwmon numbers change between boots
+for h in /sys/class/hwmon/hwmon*; do
+  case $(cat "$h/name" 2>/dev/null) in
+    coretemp | k10temp | zenpower) export HWMON_PATH="$h/temp1_input"; break ;;
+  esac
 done
 
 # -r flag reloads polybar on config change

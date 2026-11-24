@@ -7,14 +7,15 @@
 setxkbmap -layout us -variant altgr-intl
 
 # Load fonts
-[ -d "$HOME/.fonts" ] && set +fp "$HOME/.fonts"
+[ -d "$HOME/.fonts" ] && xset +fp "$HOME/.fonts" 2>/dev/null || true
 xset fp rehash
 
 # Disable bell
 xset -b
 
-# Faster trackpad acceleration
-xinput --set-prop 12 300 0.125
+# Faster trackpad acceleration. Xsession sources this file under set -e: a missing device must not end the login.
+touchpad=$(xinput list --name-only | grep -i -m1 touchpad) &&
+    xinput --set-prop "$touchpad" "libinput Accel Speed" 0.125 || true
 
 # Thunar mounts
 if command -v thunar > /dev/null 2>&1; then

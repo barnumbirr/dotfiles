@@ -6,7 +6,13 @@ I3_CONFIG="$HOME/.config/i3/config"
 
 # Extract wallpaper path from i3 config
 WALLPAPER=$(grep -Eo 'feh .* --bg-(scale|fill|center) [^ ]+' "$I3_CONFIG" | awk '{print $NF}')
-WALLPAPER="${WALLPAPER/#\~/$HOME}"
+
+if [ -z "$WALLPAPER" ]; then
+    echo "No wallpaper defined in i3 config."
+    exit 1
+fi
+
+case $WALLPAPER in "~"/*) WALLPAPER="$HOME/${WALLPAPER#"~/"}" ;; esac
 
 WALLPAPER_DIR=$(dirname "$WALLPAPER")
 WALLPAPER_BASENAME=$(basename "$WALLPAPER")

@@ -1,18 +1,16 @@
 #!/bin/sh
 #
-# whatsmyip - return public IPv[4|6] address
+# whatsmyip - print every public IP address this host answers from
 #
 
 set -eu
 
 PROG_NAME="${0##*/}"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -20,57 +18,204 @@ usage() {
   cat <<EOF
 Usage: $PROG_NAME [options]
 
-Return your public IP address.
+Print every public IP address this host answers from: one per WAN uplink,
+for each protocol family.
 
 Options:
-  -4, --IPv4       return public IPv4 if present
-  -6, --IPv6       return public IPv6 if present
-  -a, --all        return both IPv4 and IPv6 if present
-  -s, --strip      remove newline from output
+  -4, --IPv4       IPv4 only
+  -6, --IPv6       IPv6 only
+  -a, --all        both families (the default)
+  -s, --strip      remove trailing newline from output
 
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
+
+Without -4 or -6 a missing family is skipped; with one, it is an error.
+Each family is probed against several destinations at once, since a
+multi-WAN router picks the uplink per destination; an idle one stays unseen.
 EOF
 }
 
-query() {
-  if ! _query_resp=$(curl --disable --fail --silent --compressed "https://${1}.icanhazip.com/"); then
-    die "an error occurred, please try again"
-  fi
+ECHO_URLS_IPV4='https://ipv4.icanhazip.com/
+https://api.ipify.org/
+https://checkip.amazonaws.com/
+https://4.ident.me/
+https://myip.dnsomatic.com/'
 
+ECHO_URLS_IPV6='https://ipv6.icanhazip.com/
+https://api6.ipify.org/
+https://6.ident.me/
+https://ipv6.seeip.org/'
+
+# Destinations probed per family, and at most per service (one operator tends to use one uplink).
+MAX_DESTS=12
+MAX_DESTS_PER_HOST=4
+
+url_host() {
+  _uh_rest=${1#*://}
+  printf '%s' "${_uh_rest%%/*}"
+}
+
+# Rejects error pages and the other family's addresses; not strict validation.
+is_addr() {
+  case "$1" in
+    ipv4)
+      case "$2" in
+        '' | *[!0-9.]*) return 1 ;;
+        [0-9]*.[0-9]*.[0-9]*.[0-9]*) return 0 ;;
+      esac
+      ;;
+    ipv6)
+      case "$2" in
+        '' | *[!0-9A-Fa-f:]*) return 1 ;;
+        *:*:*) return 0 ;;
+      esac
+      ;;
+  esac
+  return 1
+}
+
+# A host's addresses for one family: getent on glibc, dig elsewhere.
+resolve_addrs() {
+  case "$1" in
+    ipv4) _ra_db=ahostsv4; _ra_rr=A ;;
+    ipv6) _ra_db=ahostsv6; _ra_rr=AAAA ;;
+  esac
+  _ra_raw=$(getent "$_ra_db" "$2" 2>/dev/null | awk '{print $1}') || _ra_raw=""
+  [ -n "$_ra_raw" ] || _ra_raw=$(dig +short +time=2 +tries=1 "$_ra_rr" "$2" 2>/dev/null) || _ra_raw=""
+
+  printf '%s\n' "$_ra_raw" | while IFS= read -r _ra_addr; do
+    if is_addr "$1" "$_ra_addr"; then
+      printf '%s\n' "$_ra_addr"
+    fi
+  done | sort -u | head -n "$MAX_DESTS_PER_HOST"
+}
+
+# url|address pairs; an unresolvable host still gets one unpinned probe.
+build_targets() {
+  _bt_total=0
+  for _bt_url in $(if [ "$1" = ipv4 ]; then echo "$ECHO_URLS_IPV4"; else echo "$ECHO_URLS_IPV6"; fi); do
+    [ "$_bt_total" -lt "$MAX_DESTS" ] || break
+    _bt_got=false
+    for _bt_addr in $(resolve_addrs "$1" "$(url_host "$_bt_url")"); do
+      [ "$_bt_total" -lt "$MAX_DESTS" ] || break
+      _bt_total=$((_bt_total + 1))
+      _bt_got=true
+      printf '%s|%s\n' "$_bt_url" "$_bt_addr"
+    done
+    if [ "$_bt_got" = false ]; then
+      _bt_total=$((_bt_total + 1))
+      printf '%s|\n' "$_bt_url"
+    fi
+  done
+}
+
+# One request pinned to a family (curl's --ipv4/--ipv6) and, when given, to one address.
+fetch() {
+  case "$3" in
+    *:*) _f_dest="[$3]" ;;
+    *) _f_dest="$3" ;;
+  esac
+  curl --disable --fail --silent "--$1" --connect-timeout 5 --max-time 10 \
+    ${3:+--resolve "$(url_host "$2"):443:$_f_dest"} "$2"
+}
+
+emit() {
   if [ "$STRIP" = true ]; then
-    printf '%s' "$_query_resp"
+    if [ "$FOUND" = true ]; then
+      printf '\n'
+    fi
+    printf '%s' "$1"
   else
-    echo "$_query_resp"
+    echo "$1"
   fi
+  FOUND=true
+}
+
+# All probes of a family run at once, so a pass costs the slowest one.
+discover_family() {
+  _df_targets=$(build_targets "$1")
+  [ -n "$_df_targets" ] || return 1
+
+  rm -f "$PROBE_DIR"/*
+  _df_n=0
+  for _df_target in $_df_targets; do
+    _df_n=$((_df_n + 1))
+    fetch "$1" "${_df_target%%|*}" "${_df_target#*|}" > "$PROBE_DIR/$_df_n" 2>/dev/null &
+  done
+  wait || :
+
+  _df_seen=""
+  for _df_file in "$PROBE_DIR"/*; do
+    [ -f "$_df_file" ] || continue
+    _df_addr=$(tr -d '[:space:]' < "$_df_file")
+    is_addr "$1" "$_df_addr" || continue
+
+    case " $_df_seen " in
+      *" $_df_addr "*) ;;
+      *)
+        _df_seen="${_df_seen:+$_df_seen }$_df_addr"
+        emit "$_df_addr"
+        ;;
+    esac
+  done
+
+  [ -n "$_df_seen" ]
+}
+
+main() {
+  command -v curl >/dev/null 2>&1 || die "curl is required but was not found"
+
+  PROBE_DIR=$(mktemp -d) || die "could not create a temporary directory"
+  trap 'rm -rf "$PROBE_DIR"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  # One named family must answer; of both, a missing one is skipped.
+  case "$PROTOS" in
+    *' '*) _main_strict=false ;;
+    *) _main_strict=true ;;
+  esac
+
+  for _main_family in $PROTOS; do
+    if ! discover_family "$_main_family" && [ "$_main_strict" = true ]; then
+      die "could not determine public $_main_family address"
+    fi
+  done
+
+  [ "$FOUND" = true ] || die "could not determine any public IP address"
+}
+
+add_proto() {
+  case " $PROTOS " in
+    *" $1 "*) ;;
+    *) PROTOS="${PROTOS:+$PROTOS }$1" ;;
+  esac
 }
 
 parse_params() {
-  PROTO=""
-  ALL=false
+  PROTOS=""
   STRIP=false
+  FOUND=false
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
-      -4 | --IPv4)    PROTO="ipv4" ;;
-      -6 | --IPv6)    PROTO="ipv6" ;;
-      -a | --all)     ALL=true ;;
+      -4 | --IPv4)    add_proto ipv4 ;;
+      -6 | --IPv6)    add_proto ipv6 ;;
+      -a | --all)     add_proto ipv4; add_proto ipv6 ;;
       -s | --strip)   STRIP=true ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift
   done
 
-  if [ "$ALL" = true ]; then
-    for _pp_proto in ipv4 ipv6; do
-      query "$_pp_proto"
-    done
-  else
-    query "${PROTO:-ipv4}"
-  fi
+  : "${PROTOS:=ipv4 ipv6}"
+
+  main "$@"
 }
 
 parse_params "$@"

@@ -25,6 +25,12 @@ $ dots fetch
 $ dots reset --hard origin/master
 ```
 
+micro plugins (filemanager is tracked):
+
+```bash
+$ micro -plugin install gitStatus quoter wc
+```
+
 ## Configuration
 
 ```bash
@@ -56,7 +62,7 @@ $ dots ls-files .config/polybar/
 ## License
 
 ```
-Copyright (C) 2019-2024 Martin Simon
+Copyright (C) 2019-2026 Martin Simon
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

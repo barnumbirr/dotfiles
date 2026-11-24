@@ -1,0 +1,45 @@
+# Shared git settings (dotfiles); ~/.gitconfig holds machine-local ones and is read after this.
+# Each directory below picks its name, email and signing key from ~/.config/git/users/.
+[user]
+  useConfigOnly = true
+[diff]
+  tool = icdiff
+[difftool]
+  prompt = false
+[help]
+  autocorrect = 1
+[icdiff]
+  options = --highlight --line-numbers
+[pull]
+  rebase = false
+[fetch]
+  prune = true
+[safe]
+  directory = *
+# Sign everything; a directory's include below can turn it off
+[commit]
+  gpgsign = true
+[tag]
+  gpgsign = true
+# GitHub credentials from gh, when installed
+[credential "https://github.com"]
+  helper =
+  helper = "!f() { command -v gh >/dev/null 2>&1 || exit 0; exec gh auth git-credential \"$@\"; }; f"
+[credential "https://gist.github.com"]
+  helper =
+  helper = "!f() { command -v gh >/dev/null 2>&1 || exit 0; exec gh auth git-credential \"$@\"; }; f"
+[includeIf "gitdir:~/.dotfiles"]
+  path = ~/.config/git/users/personal.gitconfig
+[includeIf "gitdir:~/code/personal/"]
+  path = ~/.config/git/users/personal.gitconfig
+[includeIf "gitdir:~/code/pkghaus/"]
+  path = ~/.config/git/users/personal.gitconfig
+[includeIf "gitdir:~/code/kosmonaut/"]
+  path = ~/.config/git/users/kosmonaut.gitconfig
+[includeIf "gitdir:~/code/monka/"]
+  path = ~/.config/git/users/monka.gitconfig
+[includeIf "gitdir:~/code/work/"]
+  path = ~/.config/git/users/work.gitconfig
+# Under WSL the Obsidian vault lives on the Windows drive, reached through a symlink in ~/code/personal/.
+[includeIf "gitdir:/mnt/c/Users/martin/Documents/Obsidian/Claude/"]
+  path = ~/.config/git/users/personal.gitconfig

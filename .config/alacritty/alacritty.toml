@@ -5,30 +5,6 @@ duration = 0
 [colors]
 draw_bold_text_with_bright_colors = true
 
-[[colors.indexed_colors]]
-color = "0xfd971f"
-index = 16
-
-[[colors.indexed_colors]]
-color = "0xcc6633"
-index = 17
-
-[[colors.indexed_colors]]
-color = "0x383830"
-index = 18
-
-[[colors.indexed_colors]]
-color = "0x49483e"
-index = 19
-
-[[colors.indexed_colors]]
-color = "0xa59f85"
-index = 20
-
-[[colors.indexed_colors]]
-color = "0xf5f4f1"
-index = 21
-
 [colors.bright]
 black = "0x75715e"
 blue = "0x66d9ef"

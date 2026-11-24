@@ -14,13 +14,17 @@
 /.ccache
 /.claude
 /.claude.json
-/.config/cmus/
+/.config/cmus/*
+!/.config/cmus/rc
 /.config/dconf/
 /.config/evolution/
 /.config/htop/
 /.config/micro/backups
 /.config/micro/buffers
 /.config/micro/init.lua
+# micro installs these (README); filemanager stays tracked, it carries local changes
+/.config/micro/plug/*
+!/.config/micro/plug/filemanager/
 /.config/neofetch/
 /.config/obsidian/
 /.config/pulse/
@@ -29,6 +33,7 @@
 /.config/Thunar/
 /.config/.vlc/
 /.config/.wrangler/
+/.config/gtk-2.0/gtkfilechooser.ini
 /.config/xarchiver/
 /.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml
 /.config/xournalpp/

@@ -7,12 +7,10 @@ set -eu
 
 PROG_NAME="${0##*/}"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -28,10 +26,6 @@ Options:
 EOF
 }
 
-pad_string() {
-  printf "%-${2}s" "$1"
-}
-
 main() {
   GIT_DIR=$(git rev-parse --git-dir 2>/dev/null) ||
     { [ -d ".dotfiles" ] && GIT_DIR=".dotfiles"; } ||
@@ -39,19 +33,11 @@ main() {
 
   export GIT_DIR
 
-  _main_data=$(git branch -r | grep -v HEAD | while read -r _main_branch; do
-    _main_commit_data=$(git log -1 --format="%ci%x01%cr%x01%an" "$_main_branch")
-    _main_date=$(printf '%s' "$_main_commit_data" | cut -d"$(printf '\001')" -f1)
-    _main_rel=$(printf '%s' "$_main_commit_data" | cut -d"$(printf '\001')" -f2)
-    _main_author=$(printf '%s' "$_main_commit_data" | cut -d"$(printf '\001')" -f3)
-    _main_info=$(pad_string "$_main_date ($_main_rel)" 56)
-    _main_ainfo=$(pad_string "$_main_author" 25)
-    printf "%s%s%s\n" "$_main_info" "$_main_ainfo" "${_main_branch#*/}"
-  done | sort -r)
-
   printf "%-56s%-25s%-s\n" "Commit Date" "Commit Author" "Branch"
   printf "%-56s%-25s%-s\n" "-----------" "-------------" "------"
-  printf "%s\n" "$_main_data"
+  git for-each-ref --sort=-committerdate --exclude='refs/remotes/*/HEAD' \
+    --format='%(align:56,left)%(committerdate:iso) (%(committerdate:relative))%(end)%(align:25,left)%(authorname)%(end)%(refname:lstrip=3)' \
+    refs/remotes
 }
 
 parse_params() {
@@ -59,7 +45,7 @@ parse_params() {
     case "$1" in
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift
