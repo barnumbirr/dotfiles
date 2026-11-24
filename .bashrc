@@ -206,13 +206,17 @@ export GPG_TTY
 
 # SSH and GPG agents via the vendored keychain 2.8.5. No --stop others: it kills any process naming an agent
 if [ -x "$HOME/bin/keychain" ]; then
-    _agents=ssh
-    command -v gpg-agent > /dev/null 2>&1 && _agents=gpg,ssh
-    eval "$("$HOME/bin/keychain" --quiet --quick --eval \
-            --agents "$_agents" --ignore-missing --timeout 525600 \
-            "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
-            D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
-    unset _agents
+    # keychain test-signs every GPG key (~1.2 s): run it only when the agent holds no keys
+    [ -f "$HOME/.keychain/$HOSTNAME-sh" ] && . "$HOME/.keychain/$HOSTNAME-sh" > /dev/null
+    if ! ssh-add -l > /dev/null 2>&1; then
+        _agents=ssh
+        command -v gpg-agent > /dev/null 2>&1 && _agents=gpg,ssh
+        eval "$("$HOME/bin/keychain" --quiet --quick --eval \
+                --agents "$_agents" --ignore-missing --timeout 525600 \
+                "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
+                D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
+        unset _agents
+    fi
 fi
 
 # Reset the window title after SSH

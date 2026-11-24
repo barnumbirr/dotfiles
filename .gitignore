@@ -43,7 +43,8 @@
 /Downloads/
 /.env
 /.gitconfig
-/.gnupg
+/.gnupg/*
+!/.gnupg/gpg-agent.conf
 /.keychain
 /.lesshst
 /.mozilla
