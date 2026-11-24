@@ -1,1 +1,6 @@
 @theme "Monokai"
+
+/* Same scale as Xft.dpi in ~/.Xresources.local: rofi ignores Xft.dpi */
+configuration {
+    dpi: 120;
+}
