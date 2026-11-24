@@ -131,19 +131,10 @@ if [[ ! $DISPLAY && $XDG_VTNR -eq 1 ]] ; then
     exec startx
 fi
 
-# Cross-platform .gitconfig (only write when the value changes)
 OS=$(uname -a)
-if command -v git > /dev/null 2>&1; then
-    case $OS in
-        *microsoft*) _gitinc="$HOME/.config/git/wsl.gitconfig" ;;
-        Linux*)      _gitinc="$HOME/.config/git/linux.gitconfig" ;;
-        *)           _gitinc="" ;;
-    esac
-    if [ -n "$_gitinc" ] && [ "$(git config --global include.path)" != "$_gitinc" ]; then
-        git config --global include.path "$_gitinc"
-    fi
-    unset _gitinc
-fi
+
+# Keep `git config --global` writes out of the tracked ~/.config/git/config
+[ -e "$HOME/.gitconfig" ] || printf '# Machine-local git settings, untracked. Shared settings: ~/.config/git/config (dotfiles).\n' > "$HOME/.gitconfig"
 
 # Check for git once at startup
 _has_git=$(command -v git > /dev/null 2>&1 && echo 1)

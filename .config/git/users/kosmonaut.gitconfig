@@ -4,9 +4,3 @@
   signingkey = 98763DC54A0266EF
 [core]
   sshCommand = "ssh -i ~/.ssh/id_kosmonaut"
-[commit]
-  gpgsign = true
-[tag]
-  gpgsign = true
-[gpg]
-  program = gpg2

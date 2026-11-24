@@ -1,0 +1,6 @@
+# Claude Code's per-machine project settings
+**/.claude/settings.local.json
+
+# Builder output of pkg.haus packaging repos, which carry no .gitignore (target/: builders before 2026-08-15)
+debs/
+target/
