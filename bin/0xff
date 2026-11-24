@@ -17,6 +17,20 @@ die() {
   exit "$_die_rc"
 }
 
+# Prints field $2 of the JSON object $1, or fails.
+_json_field() {
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$1" | jq -re ".$2"
+  else
+    printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" | grep .
+  fi
+}
+
+# The server's error message from response $1.
+_why() {
+  _json_field "$1" message 2>/dev/null || echo "unknown error"
+}
+
 usage() {
   cat <<EOF
 Usage: $PROG_NAME [options] URL
@@ -25,7 +39,7 @@ Shorten, list, or delete URLs via 0xff.tf.
 
 Options:
   -c, --custom SLUG   use a custom slug (https://0xff.tf/SLUG)
-  -u, --update SLUG   update an existing slug's target URL
+  -u, --update SLUG   update an existing slug's target URL (without -t it never expires)
   -d, --delete SLUG   delete a short URL by slug
   -t, --ttl SECONDS   set expiration (minimum 60 seconds)
   -l, --list          list all your shortened URLs
@@ -40,73 +54,50 @@ EOF
 _pretty_json() {
   if command -v jq >/dev/null 2>&1; then
     printf '%s\n' "$1" | jq
-  elif command -v python >/dev/null 2>&1; then
-    printf '%s\n' "$1" | python -m json.tool
+  elif command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "$1" | python3 -m json.tool
   else
-    msg "WARNING: Neither 'jq' nor 'python' installed"
+    msg "WARNING: Neither 'jq' nor 'python3' installed"
     printf '%s\n' "$1"
   fi
 }
 
-_0xff() {
-  _0xff_url="https://0xff.tf"
+# A request to 0xff.tf: _api METHOD PATH [curl options]. Prints the body; fails on an HTTP error.
+_api() {
+  _api_method=$1 _api_path=$2
+  shift 2
+  curl --silent --show-error --fail-with-body -X "$_api_method" \
+    ${AUTH:+-H "Authorization: $AUTH"} "$@" "https://0xff.tf$_api_path"
+}
 
+_0xff() {
   # Preview and QR don't require auth
   if [ -n "$PREVIEW_SLUG" ]; then
-    _0xff_raw=$(curl --silent --fail \
-      "$_0xff_url/${PREVIEW_SLUG}?preview") || die "failed to preview slug '${PREVIEW_SLUG}'"
+    _0xff_raw=$(_api GET "/${PREVIEW_SLUG}?preview") || die "failed to preview slug '${PREVIEW_SLUG}'"
     _pretty_json "$_0xff_raw"
     return
   fi
-
   if [ -n "$QR_SLUG" ]; then
-    curl --silent --fail \
-      "$_0xff_url/${QR_SLUG}.qr" || die "failed to get QR code for slug '${QR_SLUG}'"
+    _api GET "/${QR_SLUG}.qr" || die "failed to get QR code for slug '${QR_SLUG}'"
     return
   fi
 
   # Everything else requires auth
   [ "${SHORTENER_SECRET_KEY-}" ] || die "SHORTENER_SECRET_KEY is not set"
+  AUTH=$SHORTENER_SECRET_KEY
 
   if [ -n "$LIST" ]; then
-    _0xff_raw=$(curl --silent --fail -X GET \
-      -H "Authorization: ${SHORTENER_SECRET_KEY}" \
-      "$_0xff_url") || die "failed to list short URLs"
-    _pretty_json "$_0xff_raw"
-    return
-  fi
-
-  if [ -n "$DELETE_SLUG" ]; then
-    _0xff_raw=$(curl --silent --fail -X DELETE \
-      -H "Authorization: ${SHORTENER_SECRET_KEY}" \
-      "$_0xff_url/${DELETE_SLUG}") || die "failed to delete slug '${DELETE_SLUG}'"
-    _pretty_json "$_0xff_raw"
-    return
-  fi
-
-  if [ -n "$UPDATE_SLUG" ]; then
-    _0xff_raw=$(curl --silent --fail -X PATCH \
-      -H "Authorization: ${SHORTENER_SECRET_KEY}" \
-      -H "URL: $1" ${TTL:+-H "TTL: $TTL"} \
-      "$_0xff_url/${UPDATE_SLUG}") || die "failed to update slug '${UPDATE_SLUG}'"
-    _pretty_json "$_0xff_raw"
-    return
-  fi
-
-  if [ -n "$CUSTOM_SLUG" ]; then
-    _0xff_method="PUT"
-    _0xff_path="$_0xff_url/${CUSTOM_SLUG}"
+    _0xff_raw=$(_api GET "") || die "failed to list short URLs: $(_why "$_0xff_raw")"
+  elif [ -n "$DELETE_SLUG" ]; then
+    _0xff_raw=$(_api DELETE "/${DELETE_SLUG}") || die "failed to delete slug '${DELETE_SLUG}': $(_why "$_0xff_raw")"
+  elif [ -n "$UPDATE_SLUG" ]; then
+    _0xff_raw=$(_api PATCH "/${UPDATE_SLUG}" -H "URL: $1" ${TTL:+-H "TTL: $TTL"}) ||
+      die "failed to update slug '${UPDATE_SLUG}': $(_why "$_0xff_raw")"
   else
-    _0xff_method="POST"
-    _0xff_path="$_0xff_url"
+    _0xff_raw=$(_api "$([ -n "$CUSTOM_SLUG" ] && echo PUT || echo POST)" "${CUSTOM_SLUG:+/$CUSTOM_SLUG}" \
+      -H "URL: $1" ${TTL:+-H "TTL: $TTL"}) || die "failed to shorten URL: $(_why "$_0xff_raw")"
   fi
-
-  _0xff_resp=$(curl --silent --fail -X "$_0xff_method" \
-    -H "Authorization: ${SHORTENER_SECRET_KEY}" \
-    -H "URL: $1" ${TTL:+-H "TTL: $TTL"} \
-    "$_0xff_path") || die "failed to shorten URL"
-
-  _pretty_json "$_0xff_resp"
+  _pretty_json "$_0xff_raw"
 }
 
 parse_params() {
@@ -124,37 +115,37 @@ parse_params() {
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
       -c | --custom)
-        [ "${2-}" ] || die "missing slug after $1"
+        [ "${2-}" ] || die 2 "missing slug after $1"
         CUSTOM_SLUG="$2"
         shift
         ;;
       -u | --update)
-        [ "${2-}" ] || die "missing slug after $1"
+        [ "${2-}" ] || die 2 "missing slug after $1"
         UPDATE_SLUG="$2"
         shift
         ;;
       -d | --delete)
-        [ "${2-}" ] || die "missing slug after $1"
+        [ "${2-}" ] || die 2 "missing slug after $1"
         DELETE_SLUG="$2"
         shift
         ;;
       -t | --ttl)
-        [ "${2-}" ] || die "missing seconds after $1"
+        [ "${2-}" ] || die 2 "missing seconds after $1"
         TTL="$2"
         shift
         ;;
       -p | --preview)
-        [ "${2-}" ] || die "missing slug after $1"
+        [ "${2-}" ] || die 2 "missing slug after $1"
         PREVIEW_SLUG="$2"
         shift
         ;;
       -q | --qr)
-        [ "${2-}" ] || die "missing slug after $1"
+        [ "${2-}" ] || die 2 "missing slug after $1"
         QR_SLUG="$2"
         shift
         ;;
       -l | --list) LIST="1" ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   _pp_url="$1" ;;
     esac
     shift
@@ -165,7 +156,7 @@ parse_params() {
     return
   fi
 
-  [ -n "$_pp_url" ] || die "URL is required unless listing, deleting, previewing, or getting QR.\nTry '$PROG_NAME -h' for more information."
+  [ -n "$_pp_url" ] || die 2 "URL is required unless listing, deleting, previewing, or getting QR.\nTry '$PROG_NAME -h' for more information."
 
   _0xff "$_pp_url"
 }

@@ -1,38 +1,23 @@
+# shellcheck shell=sh
 # ~/.profile: executed by the command interpreter for login shells.
-# This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login
-# exists.
-# see /usr/share/doc/bash/examples/startup-files for examples.
-# the files are located in the bash-doc package.
 
-# the default umask is set in /etc/profile; for setting the umask
-# for ssh logins, install and configure the libpam-umask package.
-#umask 022
+# Installers (uv) put binaries here, not in the tracked ~/bin
+export XDG_BIN_HOME="$HOME/.local/bin"
 
-# set PATH so it includes user's private bin if it exists
-# (no chmod sweep here: git tracks the executable bit for ~/bin)
-if [ -d "$HOME/bin" ]; then
-    export XDG_BIN_HOME="$HOME/bin"
-    case ":$PATH:" in *"$HOME/bin"*) ;; *) PATH="$HOME/bin:${PATH}" ;; esac
-fi
+# Private bin directories on PATH; each one listed later comes first
+for d in "$HOME/bin" "$HOME/.local/bin" "$HOME/.local/sbin"; do
+    [ -d "$d" ] || continue
+    case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
+done
+unset d
 
-# set PATH so it includes user's private bin if it exists
-if [ -d "$HOME/.local/bin" ]; then
-    export XDG_LOCAL_BIN_HOME="$HOME/.local/bin"
-    case ":$PATH:" in *"$HOME/.local/bin"*) ;; *) PATH="$HOME/.local/bin:${PATH}" ;; esac
-    find "$HOME/.local/bin" -type f ! -name '_*' -exec chmod +x {} +
-fi
+# Make the scripts in ~/.local executable (names starting with _ are left alone)
+find "$HOME/.local/bin" "$HOME/.local/sbin" -type f ! -name '_*' -exec chmod +x {} + 2>/dev/null
 
-# set PATH so it includes user's private sbin if it exists
-if [ -d "$HOME/.local/sbin" ]; then
-    export XDG_LOCAL_SBIN_HOME="$HOME/.local/sbin"
-    case ":$PATH:" in *"$HOME/.local/sbin"*) ;; *) PATH="$HOME/.local/sbin:${PATH}" ;; esac
-    find "$HOME/.local/sbin" -type f ! -name '_*' -exec chmod +x {} +
-fi
-
-# if running bash, include .bashrc if it exists (PATH must already be
-# final at this point: .bashrc invokes tools from the dirs above)
+# if running bash, include .bashrc (last, so it sees the final PATH)
 if [ -n "$BASH_VERSION" ]; then
     if [ -f "$HOME/.bashrc" ]; then
-        source "$HOME/.bashrc"
+        # shellcheck source=/dev/null
+        . "$HOME/.bashrc"
     fi
 fi

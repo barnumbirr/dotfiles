@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # "$HOME"/.bashrc: executed by bash(1) for non-login shells.
 # See /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
@@ -28,9 +29,8 @@ HISTFILESIZE=
 # See bash(1) for more options
 HISTCONTROL=ignorespace:erasedups
 
-# Flush history after every command so a crashed or killed terminal
-# doesn't lose its session
-PROMPT_COMMAND='history -a'
+# Write history after every command, so a killed terminal keeps it
+PROMPT_COMMAND="history -a${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 
 # Append to the history file, don't overwrite it
 shopt -s histappend
@@ -69,9 +69,9 @@ case $TERM in "") TERM=xterm-256color;; esac
 # https://en.wikipedia.org/wiki/ANSI_escape_code#In_shell_scripting
 flash () {
     while true; do
-        printf \\e[?5h;
+        printf '\e[?5h';
         sleep 0.2;
-        printf \\e[?5l;
+        printf '\e[?5l';
         read -r -s -n1 -t1 && break;
     done;
 }
@@ -102,11 +102,14 @@ man() {
 # sources /etc/bash.bashrc).
 if ! shopt -oq posix; then
     if [ -f /usr/share/bash-completion/bash_completion ]; then
+        # shellcheck source=/dev/null
         source /usr/share/bash-completion/bash_completion
     elif [ -f /etc/bash_completion ]; then
+        # shellcheck source=/dev/null
         source /etc/bash_completion
     elif [[ $(uname) == 'Darwin' ]]; then
         if [ -f "$(brew --prefix)"/etc/bash_completion ]; then
+            # shellcheck source=/dev/null
             source "$(brew --prefix)"/etc/bash_completion
         fi
     fi
@@ -117,6 +120,7 @@ fi
 # "$HOME"/.aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 if [ -f "$HOME"/.aliases ]; then
+    # shellcheck source=/dev/null
     source "$HOME"/.aliases
 fi
 
@@ -139,26 +143,15 @@ OS=$(uname -a)
 # Check for git once at startup
 _has_git=$(command -v git > /dev/null 2>&1 && echo 1)
 
-# Get current branch in Git repository
+# Current git branch and its state, from one `git status`
 parse_git_branch() {
     [[ -z "$_has_git" ]] && return
-    local branch
-    branch=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
-    if [[ -n "$branch" ]]; then
-        local stat
-        stat=$(parse_git_dirty)
-        echo " (${branch}${stat})"
-    fi
-}
-
-# Get current status of Git repository
-parse_git_dirty() {
-    [[ -z "$_has_git" ]] && return
-    local status bits='' has_renamed=0 has_new=0 has_untracked=0 has_deleted=0 has_modified=0
+    local status line branch bits='' has_renamed=0 has_new=0 has_untracked=0 has_deleted=0 has_modified=0
     status=$(git status --branch --porcelain 2>/dev/null) || return
     while IFS= read -r line; do
         case "${line:0:2}" in
-            \#\#) [[ "$line" == *"[ahead"* ]] && bits="*" ;;
+            \#\#) branch=${line#\#\# }; branch=${branch#No commits yet on }; branch=${branch%%...*}
+                [[ "$line" == *"[ahead"* ]] && bits="*" ;;
             R?)          has_renamed=1 ;;
             A?|?A)       has_new=1 ;;
             \?\?)        has_untracked=1 ;;
@@ -171,7 +164,8 @@ parse_git_dirty() {
     ((has_untracked)) && bits="?${bits}"
     ((has_deleted))  && bits="x${bits}"
     ((has_modified)) && bits="!${bits}"
-    [[ -n "$bits" ]] && echo " ${bits}"
+    [[ "$branch" == "HEAD (no branch)" ]] && branch="(HEAD detached at $(git rev-parse --short HEAD))"
+    echo " (${branch}${bits:+ $bits})"
 }
 
 # Beautiful command prompt.
@@ -184,70 +178,61 @@ elif [[ -f /usr/bin/dircolors && -f "$HOME"/.dircolors ]]; then
     eval "$(dircolors -b "$HOME"/.dircolors)"
 fi
 
+# Windows Terminal retitles the tab with the .exe a command ran and can't restore it (WT #14575):
+# reset it to the distro name, keeping the command's exit status
+_wt_title() {
+    local rc=$?
+    printf '\033]0;%s\a' "$WSL_DISTRO_NAME"
+    return $rc
+}
+
 # Cross-platform Sublime Text CLI
 st () {
     case $OS in
-        *microsoft*)
-            /mnt/c/Program\ Files/Sublime\ Text/subl.exe "${@:-.}"
-            # Windows Terminal changes the tab title to the .exe path;
-            # CSI 22t/23t title stacking is still unsupported (WT #14575),
-            # so reset the title using the WSL distro name.
-            echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
-            ;;
-        Linux*)
-            command subl "${@:-.}"
-            ;;
-        *)
-            ;;
+        *microsoft*) /mnt/c/Program\ Files/Sublime\ Text/subl.exe "${@:-.}"; _wt_title ;;
+        *) command subl "${@:-.}" ;;
     esac
 }
 
 # Cross-platform Zed CLI
 zed () {
-    case $OS in
-        *microsoft*)
-            command zed "${@:-.}"
-            # Windows Terminal changes the tab title to the .exe path;
-            # CSI 22t/23t title stacking is still unsupported (WT #14575),
-            # so reset the title using the WSL distro name.
-            echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
-            ;;
-        Linux*)
-            command zed "${@:-.}"
-            ;;
-        *)
-            ;;
-    esac
+    command zed "${@:-.}"
+    case $OS in *microsoft*) _wt_title ;; esac
 }
 
 # Fix 'gpg: signing failed: Inappropriate ioctl for device'
 GPG_TTY=$(tty)
 export GPG_TTY
 
-# Start SSH Agent and add keys (keychain 2.8.5 vendored in ~/bin)
+# SSH and GPG agents via the vendored keychain 2.8.5. No --stop others: it kills any process naming an agent
 if [ -x "$HOME/bin/keychain" ]; then
-    eval "$("$HOME/bin/keychain" --stop others --quiet --quick --eval \
-            --agents gpg,ssh --ignore-missing --timeout 525600 \
+    _agents=ssh
+    command -v gpg-agent > /dev/null 2>&1 && _agents=gpg,ssh
+    eval "$("$HOME/bin/keychain" --quiet --quick --eval \
+            --agents "$_agents" --ignore-missing --timeout 525600 \
             "$HOME/.ssh/id_personal" "$HOME/.ssh/id_kosmonaut" "$HOME/.ssh/id_work" \
             D0132247B7A2BFC9 98763DC54A0266EF EFCAAF15EC4016D0)"
+    unset _agents
 fi
 
 # Reset the window title after SSH
 ssh() {
     case $OS in
-        *microsoft*)
-            command ssh "$@"
-            echo -ne "\033]0;${WSL_DISTRO_NAME}\a"
-            ;;
+        *microsoft*) command ssh "$@"; _wt_title ;;
         Linux*)
-            echo -ne '\e[22t'
-            command ssh "$@"
-            echo -ne '\e[23t'
+            local rc
+            printf '\e[22t'
+            command ssh "$@"; rc=$?
+            printf '\e[23t'
+            return $rc
             ;;
-        *)
-            command ssh "$@"
-            ;;
+        *) command ssh "$@" ;;
     esac
+}
+
+# Latest release of a GitHub repository: gh-release owner/repo
+gh-release() {
+    gh release view -R "$1" --json tagName,url -q '.tagName + " (" + .url + ")"'
 }
 
 # Generate passwords
@@ -256,19 +241,7 @@ pgen() {
 }
 
 # Go up a specified number of directories (i.e. `up 4`)
-up () {
-    local d=""
-    limit=$1
-    for ((i=1 ; i <= limit ; i++))
-        do
-            d=$d/..
-        done
-    d=${d#/}
-    if [ -z "$d" ]; then
-        d=..
-    fi
-    cd "$d" || return
-}
+up() { local d; printf -v d '../%.0s' $(seq "${1:-1}"); cd "$d" || return; }
 
 # Backup 'target' $1 to 'target.bak' using either cp or mv
 bak() {
@@ -277,6 +250,7 @@ bak() {
     local target="${1%/}" # Remove trailing / if present
 
     [[ -n "$target" ]] || { echo "Usage: bak [-m] <target>"; return 1; }
+    [[ -e "$target.bak" ]] && { echo "bak: $target.bak already exists"; return 1; }
 
     "${cmd[@]}" -v "$target" "$target.bak"
 }
@@ -293,14 +267,15 @@ unbak() {
     mv -v "$target" "$restored"
 }
 
-# Load ENV variables from file
-# https://stackoverflow.com/a/66118031
+# Load ENV variables from file, exported
 if [[ -f "$HOME/.env" ]]; then
     set -a
-    source <(grep -vE '^\s*#|^\s*$' "$HOME/.env" | sed "s/'/'\\\\''/g")
+    # shellcheck source=/dev/null
+    source "$HOME/.env"
     set +a
 fi
 
 if [ -f "$HOME"/.cargo/env ]; then
+    # shellcheck source=/dev/null
     source "$HOME"/.cargo/env
 fi

@@ -10,10 +10,14 @@
 /.bash_history
 /.cache
 /.ccache
-/.config/cmus/
+/.config/cmus/*
+!/.config/cmus/rc
 /.config/micro/backups
 /.config/micro/buffers
 /.config/micro/init.lua
+# micro installs these (README); filemanager stays tracked, it carries local changes
+/.config/micro/plug/*
+!/.config/micro/plug/filemanager/
 /.config/neofetch/
 /.config/obsidian/
 /.config/pulse/
@@ -21,6 +25,7 @@
 /.config/sublime-text/
 /.config/.vlc/
 /.config/.wrangler/
+/.config/gtk-2.0/gtkfilechooser.ini
 /Desktop/
 /.docker
 /Downloads/

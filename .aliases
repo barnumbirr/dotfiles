@@ -1,5 +1,6 @@
-alias dots="git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME"
-if ls --color=auto . > /dev/null 2>&1; then
+# shellcheck shell=bash
+alias dots='git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
+if ls --color=auto -d / > /dev/null 2>&1; then
     alias ls="ls -lah --color=auto"
 else
     alias ls="ls -lahG"
@@ -11,12 +12,6 @@ alias shorten="0xff"
 alias pb="vault"
 alias wttr="weather"
 
-# Set some defaults for tree if installed
-if command -v tree > /dev/null 2>&1; then
-    alias tree="tree -CAhF --dirsfirst"
-fi
-
-# Set some defaults for nano if installed
-if command -v nano > /dev/null 2>&1; then
-    alias nano='nano --smarthome --multibuffer --const --autoindent'
-fi
+alias tree="tree -CAhF --dirsfirst"
+alias nano='nano --smarthome --multibuffer --const --autoindent'
+alias human='numfmt --to=iec-i --suffix=B --format=%.2f --round=down'

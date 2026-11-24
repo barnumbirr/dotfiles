@@ -23,12 +23,12 @@ Usage: $PROG_NAME <command> [args]
 
 Commands:
   backup [DIR]    save installed/marked packages, GPG keys and sources
-  files PKG       list files installed to system from package
-  list PATTERN    list all known packages matching one or more patterns
-  lock PKG        lock package to currently installed version
+  files PKG...    list files installed to system from package
+  list PATTERN... list all known packages matching one or more patterns
+  lock PKG...     lock package to currently installed version
   restore [DIR]   restore backup from directory
-  search PATTERN  search for packages that own files corresponding to the given patterns
-  unlock PKG      unlock previously locked package
+  search PATTERN... search for packages that own files corresponding to the given patterns
+  unlock PKG...   unlock previously locked package
 
 Options:
   -h, --help      display this help message and exit
@@ -49,8 +49,13 @@ cmd_backup() {
   fi
 
   cp -R /etc/apt/sources.list* "$_bk_dir/"
-  cp -R /usr/share/keyrings "$_bk_dir/system-keyrings"
-  [ -d /etc/apt/keyrings ] && cp -R /etc/apt/keyrings "$_bk_dir/apt-keyrings"
+  # Copy directory contents (dir/.): copying a directory into one that exists nests it
+  mkdir -p "$_bk_dir/system-keyrings"
+  cp -R /usr/share/keyrings/. "$_bk_dir/system-keyrings/"
+  if [ -d /etc/apt/keyrings ]; then
+    mkdir -p "$_bk_dir/apt-keyrings"
+    cp -R /etc/apt/keyrings/. "$_bk_dir/apt-keyrings/"
+  fi
   dpkg --get-selections > "$_bk_dir/packages.txt"
   apt-mark showauto > "$_bk_dir/marked.txt" 2>/dev/null
 
@@ -58,23 +63,26 @@ cmd_backup() {
 }
 
 cmd_files() {
-  dpkg-query --listfiles "$1"
+  dpkg-query --listfiles "$@"
 }
 
 cmd_list() {
-  dpkg-query --list "$1"
+  dpkg-query --list "$@"
 }
 
 cmd_lock() {
-  apt-mark hold "$1"
+  apt-mark hold "$@"
 }
 
 cmd_restore() {
   _rs_dir="${1:-$BACKUP_DIRECTORY}"
 
-  cp -R "$_rs_dir/system-keyrings" /usr/share/keyrings
+  cp -R "$_rs_dir/system-keyrings/." /usr/share/keyrings/
   cp -R "$_rs_dir/sources.list"* /etc/apt/
-  [ -d "$_rs_dir/apt-keyrings" ] && cp -R "$_rs_dir/apt-keyrings" /etc/apt/keyrings
+  if [ -d "$_rs_dir/apt-keyrings" ]; then
+    mkdir -p /etc/apt/keyrings
+    cp -R "$_rs_dir/apt-keyrings/." /etc/apt/keyrings/
+  fi
   _rs_tmp=$(mktemp)
   apt-cache dumpavail > "$_rs_tmp" || { rm -f "$_rs_tmp"; die "apt-cache dumpavail failed"; }
   dpkg --merge-avail "$_rs_tmp" || { rm -f "$_rs_tmp"; die "dpkg --merge-avail failed"; }
@@ -98,11 +106,11 @@ cmd_restore() {
 }
 
 cmd_search() {
-  dpkg-query --search "$1"
+  dpkg-query --search "$@"
 }
 
 cmd_unlock() {
-  apt-mark unhold "$1"
+  apt-mark unhold "$@"
 }
 
 parse_params() {
@@ -111,19 +119,19 @@ parse_params() {
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
       backup)  require_root; shift; cmd_backup "${1-}"; return ;;
-      files)   shift; [ "${1-}" ] || die "PKG is required"; cmd_files "$1"; return ;;
-      list)    shift; [ "${1-}" ] || die "PATTERN is required"; cmd_list "$1"; return ;;
-      lock)    require_root; shift; [ "${1-}" ] || die "PKG is required"; cmd_lock "$1"; return ;;
+      files)   shift; [ "${1-}" ] || die 2 "PKG is required"; cmd_files "$@"; return ;;
+      list)    shift; [ "${1-}" ] || die 2 "PATTERN is required"; cmd_list "$@"; return ;;
+      lock)    require_root; shift; [ "${1-}" ] || die 2 "PKG is required"; cmd_lock "$@"; return ;;
       restore) require_root; shift; cmd_restore "${1-}"; return ;;
-      search)  shift; [ "${1-}" ] || die "PATTERN is required"; cmd_search "$1"; return ;;
-      unlock)  require_root; shift; [ "${1-}" ] || die "PKG is required"; cmd_unlock "$1"; return ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
-      *)   die "unknown command: $1\nTry '$PROG_NAME -h' for more information." ;;
+      search)  shift; [ "${1-}" ] || die 2 "PATTERN is required"; cmd_search "$@"; return ;;
+      unlock)  require_root; shift; [ "${1-}" ] || die 2 "PKG is required"; cmd_unlock "$@"; return ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      *)   die 2 "unknown command: $1\nTry '$PROG_NAME -h' for more information." ;;
     esac
     shift
   done
 
-  die "missing command.\nTry '$PROG_NAME -h' for more information."
+  die 2 "missing command.\nTry '$PROG_NAME -h' for more information."
 }
 
 parse_params "$@"

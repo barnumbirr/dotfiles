@@ -10,7 +10,7 @@ if [ -z "$WALLPAPER" ]; then
     exit 1
 fi
 
-WALLPAPER="${WALLPAPER/#\~/$HOME}"
+case $WALLPAPER in "~"/*) WALLPAPER="$HOME/${WALLPAPER#"~/"}" ;; esac
 
 if [ ! -f "$WALLPAPER" ]; then
     echo "Wallpaper file not found: $WALLPAPER"
@@ -21,13 +21,14 @@ WALLPAPER_DIR=$(dirname "$WALLPAPER")
 WALLPAPER_BASENAME=$(basename "$WALLPAPER")
 WALLPAPER_NAME="${WALLPAPER_BASENAME%.*}"
 
-SCREEN_RESOLUTION=$(xrandr | grep '*' | awk '{print $1}')
+# The first monitor's current mode (one line per monitor would break ffmpeg's scale)
+SCREEN_RESOLUTION=$(xrandr | awk '/\*/ {print $1; exit}')
 if [ -z "$SCREEN_RESOLUTION" ]; then
     echo "Unable to determine screen resolution."
     exit 1
 fi
 
-BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred.png"
+BLURRED_WALLPAPER="$WALLPAPER_DIR/${WALLPAPER_NAME}_blurred_${SCREEN_RESOLUTION}.png"
 
 if [ ! -f "$BLURRED_WALLPAPER" ]; then
     echo "Generating blurred wallpaper..."

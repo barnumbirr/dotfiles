@@ -25,6 +25,12 @@ $ dots fetch
 $ dots reset --hard origin/master
 ```
 
+micro plugins (filemanager is tracked):
+
+```bash
+$ micro -plugin install gitStatus quoter wc
+```
+
 ## Configuration
 
 ```bash

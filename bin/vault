@@ -8,12 +8,10 @@ set -eu
 
 PROG_NAME="${0##*/}"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -44,7 +42,7 @@ _json_field() {
 }
 
 upload() {
-  _upload_resp=$(curl --silent --fail-with-body --data-binary @"${1:--}" \
+  _upload_resp=$(curl --silent --show-error --fail-with-body --data-binary @"${1:--}" \
     -H "Authorization: $VAULT_SECRET_KEY" \
     ${EXPIRATION:+-H "Expiration: $EXPIRATION"} \
     "$_url/documents") || \
@@ -56,7 +54,7 @@ upload() {
 }
 
 delete() {
-  _delete_resp=$(curl --silent --fail-with-body -X DELETE \
+  _delete_resp=$(curl --silent --show-error --fail-with-body -X DELETE \
     -H "Authorization: $VAULT_SECRET_KEY" \
     "$_url/documents/$1") || \
     die "failed to delete: $(_json_field "$_delete_resp" message 2>/dev/null || echo "unknown error")"
@@ -83,16 +81,16 @@ parse_params() {
       -h | --help)    usage; exit 0 ;;
       -V | --verbose) set -x ;;
       -e | --expiration)
-        [ "${2-}" ] || die "missing value after $1"
+        [ "${2-}" ] || die 2 "missing value after $1"
         EXPIRATION="$2"
         shift
         ;;
       -d | --delete)
-        [ "${2-}" ] || die "missing value after $1"
+        [ "${2-}" ] || die 2 "missing value after $1"
         DELETE_KEY="$2"
         shift
         ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift

@@ -1,18 +1,16 @@
 #!/bin/sh
 #
-# whatsmyip - return every public IP address this host answers from
+# whatsmyip - print every public IP address this host answers from
 #
 
 set -eu
 
 PROG_NAME="${0##*/}"
 
-msg() { printf '%s: %b\n' "$PROG_NAME" "$*" >&2; }
-
 die() {
   _die_rc=1
   case "${1-}" in [0-9]*) _die_rc="$1"; shift ;; esac
-  msg "error: $*"
+  printf '%s: error: %b\n' "$PROG_NAME" "$*" >&2
   exit "$_die_rc"
 }
 
@@ -20,36 +18,24 @@ usage() {
   cat <<EOF
 Usage: $PROG_NAME [options]
 
-Return every public IP address this host answers from: one per WAN
-uplink, for each protocol family.
+Print every public IP address this host answers from: one per WAN uplink,
+for each protocol family.
 
 Options:
-  -4, --IPv4       restrict output to IPv4
-  -6, --IPv6       restrict output to IPv6
-  -a, --all        probe both families (the default; kept as an alias)
+  -4, --IPv4       IPv4 only
+  -6, --IPv6       IPv6 only
+  -a, --all        both families (the default)
   -s, --strip      remove trailing newline from output
 
   -V, --verbose    output debug information
   -h, --help       display this help message and exit
 
-Both families are probed by default and an absent one is skipped. Naming
-a single family instead makes its absence an error.
-
-A multi-WAN router typically picks the uplink by hashing the destination
-address, so any one query only reveals the uplink serving that single
-destination. Each family is therefore probed across a spread of distinct
-destination addresses, concurrently, one request each. Coverage is
-bounded by that spread: an uplink no probed destination happens to route
-over goes unseen, and an idle failover uplink never appears at all.
+Without -4 or -6 a missing family is skipped; with one, it is an error.
+Each family is probed against several destinations at once, since a
+multi-WAN router picks the uplink per destination; an idle one stays unseen.
 EOF
 }
 
-FAMILIES='ipv4 ipv6'
-
-# Echo services to probe, one URL per line. Chosen for low latency and for
-# resolving to several addresses apiece, since distinct destinations are
-# what reveal distinct uplinks. Slower services are deliberately absent:
-# every probe runs concurrently, so the whole pass costs the slowest one.
 ECHO_URLS_IPV4='https://ipv4.icanhazip.com/
 https://api.ipify.org/
 https://checkip.amazonaws.com/
@@ -61,106 +47,16 @@ https://api6.ipify.org/
 https://6.ident.me/
 https://ipv6.seeip.org/'
 
-# How many destinations to probe per family, and how many to take from any
-# single service. The per-service cap keeps one widely-balanced host from
-# crowding out the others, since two destinations behind the same operator
-# are likelier to share an uplink than two behind different ones.
+# Destinations probed per family, and at most per service (one operator tends to use one uplink).
 MAX_DESTS=12
 MAX_DESTS_PER_HOST=4
-
-family_urls() {
-  case "$1" in
-    ipv4) printf '%s\n' "$ECHO_URLS_IPV4" ;;
-    ipv6) printf '%s\n' "$ECHO_URLS_IPV6" ;;
-  esac
-}
-
-# Pin each request to one family: some echo services are dual-stack and
-# would otherwise answer over the wrong one.
-family_flag() {
-  case "$1" in
-    ipv4) printf '%s' '--ipv4' ;;
-    ipv6) printf '%s' '--ipv6' ;;
-  esac
-}
 
 url_host() {
   _uh_rest=${1#*://}
   printf '%s' "${_uh_rest%%/*}"
 }
 
-# Enumerate a host's addresses for one family. No single resolver client is
-# portable -- getent is glibc-only, dig and host ship separately, nslookup
-# is the fallback of last resort -- so each is tried until one answers.
-# Output is filtered through is_addr, which also discards the CNAME lines
-# and server-address noise these tools mix into their output.
-resolve_addrs() {
-  case "$1" in
-    ipv4) _ra_db=ahostsv4; _ra_rr=A ;;
-    ipv6) _ra_db=ahostsv6; _ra_rr=AAAA ;;
-  esac
-
-  _ra_raw=$(getent "$_ra_db" "$2" 2>/dev/null | awk '{print $1}') || _ra_raw=""
-  if [ -z "$_ra_raw" ]; then
-    _ra_raw=$(dig +short +time=2 +tries=1 "$_ra_rr" "$2" 2>/dev/null) || _ra_raw=""
-  fi
-  if [ -z "$_ra_raw" ]; then
-    _ra_raw=$(host -t "$_ra_rr" "$2" 2>/dev/null | awk '/address/ {print $NF}') || _ra_raw=""
-  fi
-  if [ -z "$_ra_raw" ]; then
-    _ra_raw=$(nslookup -query="$_ra_rr" "$2" 2>/dev/null | awk '/^Address/ {print $NF}') || _ra_raw=""
-  fi
-  [ -n "$_ra_raw" ] || return 0
-
-  printf '%s\n' "$_ra_raw" | while IFS= read -r _ra_addr; do
-    if is_addr "$1" "$_ra_addr"; then
-      printf '%s\n' "$_ra_addr"
-    fi
-  done | sort -u | head -n "$MAX_DESTS_PER_HOST"
-}
-
-# Build the probe list as url|address pairs. A host that cannot be
-# resolved still yields one unpinned target, so discovery degrades to a
-# plain query rather than dropping the service.
-build_targets() {
-  _bt_total=0
-  for _bt_url in $(family_urls "$1"); do
-    [ "$_bt_total" -lt "$MAX_DESTS" ] || break
-    _bt_got=false
-    for _bt_addr in $(resolve_addrs "$1" "$(url_host "$_bt_url")"); do
-      [ "$_bt_total" -lt "$MAX_DESTS" ] || break
-      _bt_total=$((_bt_total + 1))
-      _bt_got=true
-      printf '%s|%s\n' "$_bt_url" "$_bt_addr"
-    done
-    if [ "$_bt_got" = false ]; then
-      _bt_total=$((_bt_total + 1))
-      printf '%s|\n' "$_bt_url"
-    fi
-  done
-}
-
-# Timeouts keep one unresponsive service from stalling the whole pass.
-# An empty address means "resolve normally".
-fetch() {
-  if [ -z "$3" ]; then
-    curl --disable --fail --silent "$1" \
-      --connect-timeout 5 --max-time 10 "$2"
-    return
-  fi
-
-  case "$1" in
-    --ipv6) _f_dest="[$3]" ;;
-    *) _f_dest="$3" ;;
-  esac
-  curl --disable --fail --silent "$1" \
-    --connect-timeout 5 --max-time 10 \
-    --resolve "$(url_host "$2"):443:$_f_dest" "$2"
-}
-
-# Sanity filter, not strict validation: rejects the HTML error pages and
-# rate-limit blurbs an echo service returns when it is unhappy, and the
-# wrong family's addresses.
+# Rejects error pages and the other family's addresses; not strict validation.
 is_addr() {
   case "$1" in
     ipv4)
@@ -179,9 +75,53 @@ is_addr() {
   return 1
 }
 
+# A host's addresses for one family: getent on glibc, dig elsewhere.
+resolve_addrs() {
+  case "$1" in
+    ipv4) _ra_db=ahostsv4; _ra_rr=A ;;
+    ipv6) _ra_db=ahostsv6; _ra_rr=AAAA ;;
+  esac
+  _ra_raw=$(getent "$_ra_db" "$2" 2>/dev/null | awk '{print $1}') || _ra_raw=""
+  [ -n "$_ra_raw" ] || _ra_raw=$(dig +short +time=2 +tries=1 "$_ra_rr" "$2" 2>/dev/null) || _ra_raw=""
+
+  printf '%s\n' "$_ra_raw" | while IFS= read -r _ra_addr; do
+    if is_addr "$1" "$_ra_addr"; then
+      printf '%s\n' "$_ra_addr"
+    fi
+  done | sort -u | head -n "$MAX_DESTS_PER_HOST"
+}
+
+# url|address pairs; an unresolvable host still gets one unpinned probe.
+build_targets() {
+  _bt_total=0
+  for _bt_url in $(if [ "$1" = ipv4 ]; then echo "$ECHO_URLS_IPV4"; else echo "$ECHO_URLS_IPV6"; fi); do
+    [ "$_bt_total" -lt "$MAX_DESTS" ] || break
+    _bt_got=false
+    for _bt_addr in $(resolve_addrs "$1" "$(url_host "$_bt_url")"); do
+      [ "$_bt_total" -lt "$MAX_DESTS" ] || break
+      _bt_total=$((_bt_total + 1))
+      _bt_got=true
+      printf '%s|%s\n' "$_bt_url" "$_bt_addr"
+    done
+    if [ "$_bt_got" = false ]; then
+      _bt_total=$((_bt_total + 1))
+      printf '%s|\n' "$_bt_url"
+    fi
+  done
+}
+
+# One request pinned to a family (curl's --ipv4/--ipv6) and, when given, to one address.
+fetch() {
+  case "$3" in
+    *:*) _f_dest="[$3]" ;;
+    *) _f_dest="$3" ;;
+  esac
+  curl --disable --fail --silent "--$1" --connect-timeout 5 --max-time 10 \
+    ${3:+--resolve "$(url_host "$2"):443:$_f_dest"} "$2"
+}
+
 emit() {
   if [ "$STRIP" = true ]; then
-    # Separate addresses without reintroducing a trailing newline.
     if [ "$FOUND" = true ]; then
       printf '\n'
     fi
@@ -192,28 +132,18 @@ emit() {
   FOUND=true
 }
 
-# Probe every destination at once, each into its own file. The pass costs
-# the slowest destination rather than the sum of them all.
-probe_all() {
-  _pa_n=0
-  for _pa_target in $2; do
-    _pa_n=$((_pa_n + 1))
-    fetch "$1" "${_pa_target%%|*}" "${_pa_target#*|}" \
-      > "$PROBE_DIR/$_pa_n" 2>/dev/null &
-  done
-  wait || :
-}
-
-# Probe one family in a single pass, printing each distinct address found.
-# Returns non-zero if the family yielded nothing. Repeating the pass would
-# add nothing: destination-hashed routing is deterministic, so the same
-# destination returns the same uplink every time.
+# All probes of a family run at once, so a pass costs the slowest one.
 discover_family() {
   _df_targets=$(build_targets "$1")
   [ -n "$_df_targets" ] || return 1
 
   rm -f "$PROBE_DIR"/*
-  probe_all "$(family_flag "$1")" "$_df_targets"
+  _df_n=0
+  for _df_target in $_df_targets; do
+    _df_n=$((_df_n + 1))
+    fetch "$1" "${_df_target%%|*}" "${_df_target#*|}" > "$PROBE_DIR/$_df_n" 2>/dev/null &
+  done
+  wait || :
 
   _df_seen=""
   for _df_file in "$PROBE_DIR"/*; do
@@ -233,26 +163,18 @@ discover_family() {
   [ -n "$_df_seen" ]
 }
 
-# Checked at run time rather than assumed, so a missing tool reports
-# itself instead of surfacing as an empty result. --help stays usable
-# without either.
-require_tools() {
-  for _rt_tool in curl mktemp; do
-    command -v "$_rt_tool" >/dev/null 2>&1 || die "$_rt_tool is required but was not found"
-  done
-}
-
 main() {
-  require_tools
+  command -v curl >/dev/null 2>&1 || die "curl is required but was not found"
 
   PROBE_DIR=$(mktemp -d) || die "could not create a temporary directory"
-  trap 'rm -rf "$PROBE_DIR"' EXIT HUP INT TERM
+  trap 'rm -rf "$PROBE_DIR"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 
-  # A single explicitly requested family must fail loudly; among several,
-  # a missing one is merely absent.
-  _main_strict=false
+  # One named family must answer; of both, a missing one is skipped.
   case "$PROTOS" in
-    *' '*) ;;
+    *' '*) _main_strict=false ;;
     *) _main_strict=true ;;
   esac
 
@@ -285,13 +207,13 @@ parse_params() {
       -6 | --IPv6)    add_proto ipv6 ;;
       -a | --all)     add_proto ipv4; add_proto ipv6 ;;
       -s | --strip)   STRIP=true ;;
-      -?*) die "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
+      -?*) die 2 "unknown option: $1\nTry '$PROG_NAME -h' for more information." ;;
       *)   break ;;
     esac
     shift
   done
 
-  : "${PROTOS:=$FAMILIES}"
+  : "${PROTOS:=ipv4 ipv6}"
 
   main "$@"
 }

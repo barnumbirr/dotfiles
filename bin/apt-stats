@@ -1,0 +1,721 @@
+#!/bin/sh
+# apt-stats - pretty-print the apt.pkg.haus archive statistics in a terminal.
+#
+# Consumes https://apt.pkg.haus/stats.json and renders the same sections,
+# in the same order, with the same numbers as the HTML page at
+# https://apt.pkg.haus/stats: total downloads, downloads by package, by
+# suite, by day, and the update-check pivot with its stacked bar.
+#
+# POSIX sh + awk (mawk, gawk and busybox awk all work), plus curl or wget
+# for the network fetch. No jq. The JSON parser is whitespace-agnostic, so
+# a compacted or reformatted endpoint keeps working.
+#
+# Exit status: 0 ok, 1 fetch/input failure, 2 usage or malformed JSON.
+
+set -eu
+
+PROG=apt-stats
+URL=https://apt.pkg.haus/stats.json
+TIMEOUT=30
+FILE=
+COLOR=auto
+WIDTH=
+
+usage() {
+	cat <<'EOF'
+Usage: apt-stats [-u URL] [-f FILE] [-w COLS] [--color WHEN]
+
+Pretty-print the apt.pkg.haus edge download statistics.
+
+Options:
+  -u, --url URL      endpoint to read (default https://apt.pkg.haus/stats.json)
+  -f, --file FILE    read JSON from FILE instead of the network ("-" = stdin)
+  -w, --width COLS   render for COLS columns instead of the terminal width
+                     (49 minimum, 80 maximum)
+      --color WHEN   always, never or auto (default: colour when stdout is
+                     a terminal and NO_COLOR is unset)
+      --no-color     same as --color never
+  -h, --help         this text
+
+Environment:
+  NO_COLOR   set (to anything) disables colour under --color auto
+  COLUMNS    render width when --width is absent and tput cannot answer
+  LC_ALL, LC_CTYPE, LANG
+             a UTF-8 locale enables block-drawing bars and rules; any
+             other locale falls back to ASCII
+
+Exit status: 0 ok, 1 fetch or input failure, 2 usage error or bad JSON.
+EOF
+}
+
+die() {
+	printf '%s: %s\n' "$PROG" "$1" >&2
+	exit "${2:-1}"
+}
+
+is_num() {
+	case "${1:-}" in
+	'' | *[!0-9]*) return 1 ;;
+	*) return 0 ;;
+	esac
+}
+
+# ---- arguments -------------------------------------------------------------
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-u | --url)
+		[ $# -ge 2 ] || die "$1 needs a value" 2
+		URL=$2
+		shift 2
+		;;
+	--url=*)
+		URL=${1#--url=}
+		shift
+		;;
+	-f | --file)
+		[ $# -ge 2 ] || die "$1 needs a value" 2
+		FILE=$2
+		shift 2
+		;;
+	--file=*)
+		FILE=${1#--file=}
+		shift
+		;;
+	-w | --width)
+		[ $# -ge 2 ] || die "$1 needs a value" 2
+		WIDTH=$2
+		shift 2
+		;;
+	--width=*)
+		WIDTH=${1#--width=}
+		shift
+		;;
+	--color | --colour)
+		[ $# -ge 2 ] || die "$1 needs a value" 2
+		COLOR=$2
+		shift 2
+		;;
+	--color=* ) COLOR=${1#--color=}; shift ;;
+	--colour=*) COLOR=${1#--colour=}; shift ;;
+	--no-color | --no-colour)
+		COLOR=never
+		shift
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	--)
+		shift
+		break
+		;;
+	-*) die "unknown option $1 (try --help)" 2 ;;
+	*) die "unexpected argument $1 (try --help)" 2 ;;
+	esac
+done
+[ $# -eq 0 ] || die "unexpected argument $1 (try --help)" 2
+
+case "$COLOR" in
+always | never | auto) ;;
+*) die "--color takes always, never or auto (got $COLOR)" 2 ;;
+esac
+
+if [ -n "$WIDTH" ]; then
+	is_num "$WIDTH" || die "--width takes a number of columns (got $WIDTH)" 2
+fi
+
+# ---- render width ----------------------------------------------------------
+
+if [ -z "$WIDTH" ]; then
+	WIDTH=$(tput cols 2>/dev/null || :)
+	is_num "$WIDTH" || WIDTH=${COLUMNS:-}
+	is_num "$WIDTH" || WIDTH=80
+fi
+# 49 columns is the longest heading, "~ UPDATE CHECKS (INRELEASE FETCHES,
+# LAST 30 DAYS)", which is the page wording. The update-check table needs 46
+# for its fixed columns (day, three suites, total) and would wrap mid-row
+# below that, so the heading is what sets the floor.
+[ "$WIDTH" -ge 49 ] || WIDTH=49
+# 80 is the ceiling, and every table is drawn to it: the footer line
+# "counted at the edge <stamp>  .  https://apt.pkg.haus/stats.json" is exactly
+# 80 characters, so the tables and the footer share a right edge. A wider
+# terminal renders at 80 rather than stretching the tables across it.
+[ "$WIDTH" -le 80 ] || WIDTH=80
+
+# ---- colour and glyphs -----------------------------------------------------
+# The page's own tokens, dark-theme values: accent #E0421B/#F0603C and the
+# ordinal suite ramp s1 #8C3418 -> s2 #E06B44 -> s3 #FAD0BA (trixie ->
+# testing -> unstable, unstable most prominent). Terminals lacking 24-bit
+# colour get a 256-colour warm ramp with the same lightness ordering; with
+# 8 colours it degrades to dim/plain/bright red. The shade glyphs carry the
+# same ordering without any colour at all, so the bars stay readable when
+# piped, in a pager, or under --color never.
+
+use_color=0
+case "$COLOR" in
+always) use_color=1 ;;
+auto)
+	if [ -t 1 ] && [ -z "${NO_COLOR-}" ]; then
+		use_color=1
+	fi
+	;;
+*) ;; # never: already validated above, nothing to set
+esac
+
+depth=0
+if [ "$use_color" -eq 1 ]; then
+	case "${COLORTERM-}" in
+	truecolor | 24bit) depth=24 ;;
+	*)
+		ncolors=$(tput colors 2>/dev/null || :)
+		is_num "$ncolors" || ncolors=8
+		if [ "$ncolors" -ge 256 ]; then
+			depth=256
+		elif [ "$ncolors" -ge 8 ]; then
+			depth=8
+		fi
+		;;
+	esac
+fi
+
+ESC=$(printf '\033')
+C_RESET='' C_DIM='' C_BOLD='' C_ACCENT='' C_BIG='' C_S1='' C_S2='' C_S3=''
+if [ "$depth" -gt 0 ]; then
+	C_RESET="${ESC}[0m"
+	C_DIM="${ESC}[2m"
+	C_BOLD="${ESC}[1m"
+fi
+case "$depth" in
+24)
+	C_ACCENT="${ESC}[38;2;240;96;60m"
+	C_BIG="${ESC}[1;38;2;240;96;60m"
+	C_S1="${ESC}[38;2;140;52;24m"
+	C_S2="${ESC}[38;2;224;107;68m"
+	C_S3="${ESC}[38;2;250;208;186m"
+	;;
+256)
+	C_ACCENT="${ESC}[38;5;202m"
+	C_BIG="${ESC}[1;38;5;202m"
+	C_S1="${ESC}[38;5;52m"
+	C_S2="${ESC}[38;5;166m"
+	C_S3="${ESC}[38;5;223m"
+	;;
+8)
+	C_ACCENT="${ESC}[31m"
+	C_BIG="${ESC}[1;31m"
+	C_S1="${ESC}[2;31m"
+	C_S2="${ESC}[31m"
+	C_S3="${ESC}[1;31m"
+	;;
+*) ;; # depth 0: no colour, every token stays empty
+esac
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+*[Uu][Tt][Ff]8* | *[Uu][Tt][Ff]-8*)
+	RULE='─' SEP='·' G1='░' G2='▓' G3='█'
+	;;
+*)
+	RULE='-' SEP='|' G1='.' G2='+' G3='#'
+	;;
+esac
+
+# ---- input -----------------------------------------------------------------
+
+if [ -n "$FILE" ]; then
+	if [ "$FILE" = - ]; then
+		JSON=$(cat)
+	else
+		[ -r "$FILE" ] || die "cannot read $FILE"
+		JSON=$(cat -- "$FILE")
+	fi
+	SOURCE=$FILE
+else
+	if command -v curl >/dev/null 2>&1; then
+		JSON=$(curl -fsSL --max-time "$TIMEOUT" -H 'accept: application/json' -- "$URL") ||
+			die "could not fetch $URL"
+	elif command -v wget >/dev/null 2>&1; then
+		JSON=$(wget -qO- --timeout="$TIMEOUT" -- "$URL") ||
+			die "could not fetch $URL"
+	else
+		die "need curl or wget to fetch $URL"
+	fi
+	SOURCE=$URL
+fi
+[ -n "$JSON" ] || die "empty response from ${FILE:-$URL}"
+
+# The footer stamp is shown in the reader's own timezone, the way the page's
+# script rewrites its <time> element. GNU/BusyBox date does the conversion;
+# anywhere it fails, awk formats the UTC value it parsed instead.
+GENERATED=$(printf '%s\n' "$JSON" |
+	sed -n 's/.*"generated"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
+	sed -n 1p)
+LOCALSTAMP=
+if [ -n "$GENERATED" ]; then
+	LOCALSTAMP=$(date -d "$GENERATED" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || :)
+fi
+
+# ---- render ----------------------------------------------------------------
+
+printf '%s\n' "$JSON" | awk \
+	-v W="$WIDTH" -v SRC="$SOURCE" -v LOCALSTAMP="$LOCALSTAMP" \
+	-v C_RESET="$C_RESET" -v C_DIM="$C_DIM" -v C_BOLD="$C_BOLD" \
+	-v C_ACCENT="$C_ACCENT" -v C_BIG="$C_BIG" \
+	-v C_S1="$C_S1" -v C_S2="$C_S2" -v C_S3="$C_S3" \
+	-v RULE="$RULE" -v SEP="$SEP" -v G1="$G1" -v G2="$G2" -v G3="$G3" '
+BEGIN {
+	CONVFMT = "%.17g"
+	OFMT = "%.17g"
+	PW = W - 4; if (PW > 72) PW = 72
+	# Copied from src/worker.js, not derived: a change to the suite set there
+	# needs the same change here. The ramp runs stable -> testing -> unstable.
+	#
+	# SU is the identifier, matched against what /stats.json returns. SL is
+	# what a reader sees, mirroring suiteLabel() on the page. SH is the header
+	# of the pivot column, which is width-constrained: "STABLE (TRIXIE)" over a
+	# column of two-digit numbers pushed every table nine columns wider, so
+	# that one says STABLE and the legend above it carries the codename.
+	SU[1] = "trixie";   SL[1] = "stable (trixie)"; SH[1] = "stable"
+	SU[2] = "testing";  SL[2] = "testing";         SH[2] = "testing"
+	SU[3] = "unstable"; SL[3] = "unstable";        SH[3] = "unstable"
+	SC[1] = C_S1; SG[1] = G1
+	SC[2] = C_S2; SG[2] = G2
+	SC[3] = C_S3; SG[3] = G3
+
+	# Copied from DISPLAY_DAYS in src/worker.js, not derived: the page says
+	# "last 30 days" and so does this. Fewer days simply means fewer rows.
+	DAYS = 30
+}
+
+{ J = J $0 "\n" }
+
+END {
+	LEN = length(J)
+	P = 1
+	pvalue("")
+	skipws()
+	if (P <= LEN) fail("trailing data after the JSON value")
+
+	require("downloads_by_package")
+	require("downloads_by_suite")
+	require("downloads_by_day")
+	require("update_checks")
+
+	# Every table is drawn to one width -- the widest of them -- the way the
+	# page gives them all width:100%. So measure all four sections before
+	# drawing any of them.
+	measure()
+
+	header()
+	para(val("what_is_counted"), "")
+	totalDownloads()
+	table("Downloads by package", "downloads_by_package", "package", "downloads", 0)
+	table("Downloads by suite", "downloads_by_suite", "suite", "downloads", 1)
+	table("Downloads by day (last " DAYS " days)", "downloads_by_day", "day", "downloads", 0)
+	updateChecks()
+	footer()
+}
+
+# ---- JSON (recursive descent; whitespace-agnostic) -------------------------
+
+function fail(msg) {
+	print "apt-stats: " msg > "/dev/stderr"
+	close("/dev/stderr")
+	exit 2
+}
+
+# since, generated and what_is_counted are optional: read them through a guard
+# so a missing one is an empty string rather than a reference to an element
+# that was never assigned.
+function val(key) {
+	return (key in V) ? V[key] : ""
+}
+
+function require(key) {
+	if (!(key in N)) fail("unexpected JSON from " SRC ": no " key " array")
+}
+
+function skipws(    c) {
+	while (P <= LEN) {
+		c = substr(J, P, 1)
+		if (c == " " || c == "\t" || c == "\n" || c == "\r") P++
+		else return
+	}
+}
+
+function pvalue(path,    c) {
+	skipws()
+	c = substr(J, P, 1)
+	if (c == "{") pobject(path)
+	else if (c == "[") parray(path)
+	else if (c == "\"") V[path] = pstring()
+	else if (c == "") fail("unexpected end of JSON")
+	else pliteral(path)
+}
+
+function pobject(path,    key, c, child) {
+	P++
+	skipws()
+	if (substr(J, P, 1) == "}") { P++; return }
+	while (1) {
+		skipws()
+		key = pstring()
+		skipws()
+		if (substr(J, P, 1) != ":") fail("bad JSON: expected a colon at byte " P)
+		P++
+		child = (path == "") ? key : path "." key
+		pvalue(child)
+		skipws()
+		c = substr(J, P, 1)
+		P++
+		if (c == ",") continue
+		if (c == "}") return
+		fail("bad JSON: expected a comma or brace at byte " (P - 1))
+	}
+}
+
+function parray(path,    i, c) {
+	P++
+	skipws()
+	if (substr(J, P, 1) == "]") { P++; N[path] = 0; return }
+	i = 0
+	while (1) {
+		pvalue(path "." i)
+		i++
+		skipws()
+		c = substr(J, P, 1)
+		P++
+		if (c == ",") continue
+		if (c == "]") { N[path] = i; return }
+		fail("bad JSON: expected a comma or bracket at byte " (P - 1))
+	}
+}
+
+function pstring(    out, c, esc, code) {
+	if (substr(J, P, 1) != "\"") fail("bad JSON: expected a string at byte " P)
+	P++
+	out = ""
+	while (P <= LEN) {
+		c = substr(J, P, 1)
+		if (c == "\\") {
+			esc = substr(J, P + 1, 1)
+			P += 2
+			if (esc == "n") out = out "\n"
+			else if (esc == "t") out = out "\t"
+			else if (esc == "r") out = out "\r"
+			else if (esc == "b") out = out sprintf("%c", 8)
+			else if (esc == "f") out = out sprintf("%c", 12)
+			else if (esc == "u") {
+				code = hexval(substr(J, P, 4))
+				# Only the ASCII range is safe to emit with %c: awk
+				# implementations differ above it, and mangling a name
+				# is worse than showing the escape as written.
+				if (code >= 32 && code < 127) out = out sprintf("%c", code)
+				else out = out "\\u" substr(J, P, 4)
+				P += 4
+			}
+			else out = out esc
+		} else if (c == "\"") {
+			P++
+			return out
+		} else {
+			out = out c
+			P++
+		}
+	}
+	fail("bad JSON: unterminated string")
+}
+
+function hexval(s,    i, c, d, n) {
+	if (length(s) != 4) fail("bad JSON: truncated \\u escape")
+	n = 0
+	for (i = 1; i <= 4; i++) {
+		c = tolower(substr(s, i, 1))
+		d = index("0123456789abcdef", c) - 1
+		if (d < 0) fail("bad JSON: bad \\u escape")
+		n = n * 16 + d
+	}
+	return n
+}
+
+# Numbers are kept as the literal text the endpoint sent, so a count is
+# printed exactly as published; arithmetic adds 0 where it needs a number.
+function pliteral(path,    s, c) {
+	s = ""
+	while (P <= LEN) {
+		c = substr(J, P, 1)
+		if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\n" || c == "\r") break
+		s = s c
+		P++
+	}
+	if (s == "") fail("bad JSON: empty value at byte " P)
+	if (s == "true" || s == "false") { V[path] = s; return }
+	if (s == "null") { V[path] = ""; return }
+	if (s ~ /^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/) { V[path] = s; return }
+	fail("bad JSON: unexpected token " s)
+}
+
+# ---- layout helpers -------------------------------------------------------
+
+function rep(s, n,    out, i) {
+	out = ""
+	for (i = 0; i < n; i++) out = out s
+	return out
+}
+
+function pad(s, n)  { return s rep(" ", n - length(s)) }
+function lpad(s, n) { return rep(" ", n - length(s)) s }
+function widest(a, b) { return (length(a) > b) ? length(a) : b }
+
+# An h2 on the page: "~ " in the accent, the title muted and upper-cased.
+# Titles are the h2 text from the page, which shows no row counts, so neither
+# does this; the window is named in the two day-indexed headings as it is there.
+function head(title) {
+	print ""
+	printf "%s~%s %s%s%s\n", C_ACCENT, C_RESET, C_DIM, toupper(title), C_RESET
+}
+
+function para(text, color,    words, nw, i, line) {
+	if (text == "") return
+	print ""
+	nw = split(text, words, /[ \t\n\r]+/)
+	line = ""
+	for (i = 1; i <= nw; i++) {
+		if (words[i] == "") continue
+		if (line == "") line = words[i]
+		else if (length(line) + 1 + length(words[i]) <= PW) line = line " " words[i]
+		else { emit(line, color); line = words[i] }
+	}
+	if (line != "") emit(line, color)
+}
+
+function emit(line, color) {
+	if (color == "") print line
+	else print color line C_RESET
+}
+
+# ---- sections -------------------------------------------------------------
+
+function header(    since) {
+	since = val("since")
+	print C_BOLD "apt" C_RESET C_ACCENT "." C_RESET C_BOLD "pkg" C_RESET \
+		C_ACCENT "." C_RESET C_BOLD "haus" C_RESET C_DIM "/stats" C_RESET
+	# The tagline is the page sentence, with since interpolated the way page()
+	# interpolates it. Copied from src/worker.js, so it drifts if that changes.
+	if (since != "")
+		para("Aggregate download statistics for the archive, counted at the edge since " since ".", C_DIM)
+	else
+		para("Aggregate download statistics for the archive, counted at the edge.", C_DIM)
+}
+
+# The page derives its headline figure the same way, by summing the
+# per-package rows rather than asking the endpoint for a total.
+function totalDownloads(    i, n, sum) {
+	n = N["downloads_by_package"]
+	sum = 0
+	for (i = 0; i < n; i++) sum += V["downloads_by_package." i ".downloads"] + 0
+	head("Total downloads")
+	print ""
+	printf "%s%d%s\n", C_BIG, sum, C_RESET
+}
+
+# ---- measuring pass ------------------------------------------------------
+# TW is the render width every table shares. It is W, the clamped width, so
+# all four tables and the footer end in the same column. NAT is the width each
+# table would need for its own content, and it only ever raises TW: a package
+# name longer than the whole render width widens every table rather than
+# being truncated.
+
+function measure(    arr) {
+	measure2("downloads_by_package", "package", "downloads", 0)
+	measure2("downloads_by_suite", "suite", "downloads", 1)
+	measure2("downloads_by_day", "day", "downloads", 0)
+	measurePivot()
+	TW = W
+	for (arr in NAT) if (NAT[arr] > TW) TW = NAT[arr]
+}
+
+function measure2(arr, kcol, vcol, lbl,    i, n, kw, vw) {
+	n = N[arr]
+	if (n == 0) { NAT[arr] = 0; return }
+	kw = length(kcol)
+	vw = length(vcol)
+	for (i = 0; i < n; i++) {
+		kw = widest(lbl ? suiteLabel(V[arr "." i "." kcol]) : V[arr "." i "." kcol], kw)
+		vw = widest(V[arr "." i "." vcol], vw)
+	}
+	KW[arr] = kw
+	VW[arr] = vw
+	NAT[arr] = kw + 2 + vw
+}
+
+function measurePivot(    n, i, j, k, day, su, c) {
+	n = N["update_checks"]
+	PV_nd = 0
+	PV_peak = 0
+	for (i = 0; i < n; i++) {
+		day = V["update_checks." i ".day"]
+		su = V["update_checks." i ".suite"]
+		k = suiteIndex(su)
+		if (k == 0) continue
+		if (!(day in PV_seen)) {
+			PV_nd++
+			PV_days[PV_nd] = day
+			PV_seen[day] = 1
+			PV_tot[day] = 0
+			# Seed all three suites: an idle one has to read back as a
+			# real 0, both for its column and for the bar.
+			for (j = 1; j <= 3; j++) PV_cell[day, j] = 0
+		}
+		c = V["update_checks." i ".count"] + 0
+		PV_cell[day, k] += c
+		PV_tot[day] += c
+	}
+	if (PV_nd == 0) { PV_W = 0; return }
+	for (i = 1; i <= PV_nd; i++) if (PV_tot[PV_days[i]] > PV_peak) PV_peak = PV_tot[PV_days[i]]
+
+	PV_dayw = 3
+	PV_totw = 5
+	for (i = 1; i <= PV_nd; i++) {
+		PV_dayw = widest(PV_days[i], PV_dayw)
+		PV_totw = widest(PV_tot[PV_days[i]] "", PV_totw)
+	}
+	for (k = 1; k <= 3; k++) {
+		PV_sw[k] = length(SH[k])
+		for (i = 1; i <= PV_nd; i++) PV_sw[k] = widest(PV_cell[PV_days[i], k] "", PV_sw[k])
+	}
+	PV_leftw = PV_dayw + 2 + PV_sw[1] + 2 + PV_sw[2] + 2 + PV_sw[3] + 2 + PV_totw
+	# No cap: W is clamped to 80 above, so the bar takes whatever the fixed
+	# columns leave and the table ends where every other table does. Under 8
+	# cells the bar says nothing worth the space and is dropped.
+	PV_barw = W - PV_leftw - 2
+	if (PV_barw < 8) PV_barw = 0
+	PV_W = PV_leftw + ((PV_barw > 0) ? 2 + PV_barw : 0)
+}
+
+# ---- sections ------------------------------------------------------------
+
+# lbl is passed explicitly at every call site, including as 0. An omitted
+# awk argument is an uninitialised local, and gawk --lint reports reading one,
+# which the test suite treats as a failure.
+function table(title, arr, kcol, vcol, lbl,    n, i, kw, vw, k, v) {
+	n = N[arr]
+	head(title)
+	print ""
+	if (n == 0) {
+		print C_DIM "nothing recorded yet" C_RESET
+		return
+	}
+	vw = VW[arr]
+	kw = TW - vw
+	print C_DIM pad(toupper(kcol), kw) lpad(toupper(vcol), vw) C_RESET
+	print C_DIM rep(RULE, TW) C_RESET
+	for (i = 0; i < n; i++) {
+		k = V[arr "." i "." kcol]
+		if (lbl) k = suiteLabel(k)
+		v = V[arr "." i "." vcol]
+		print pad(k, kw) lpad(v, vw)
+	}
+}
+
+function suiteIndex(s,    i) {
+	for (i = 1; i <= 3; i++) if (SU[i] == s) return i
+	return 0
+}
+
+# A suite the archive does not publish passes through unchanged rather than
+# vanishing, so an unexpected value in the JSON is visible instead of silent.
+function suiteLabel(s,    i) {
+	i = suiteIndex(s)
+	return i ? SL[i] : s
+}
+
+function updateChecks(    i, k, day, c, line, hdr) {
+	head("Update checks (InRelease fetches, last " DAYS " days)")
+	print ""
+	if (PV_nd == 0) {
+		print C_DIM "nothing recorded yet" C_RESET
+		return
+	}
+
+	line = ""
+	for (k = 1; k <= 3; k++)
+		line = line ((k > 1) ? "   " : "") SC[k] SG[k] C_RESET " " C_DIM SL[k] C_RESET
+	print line
+	print ""
+
+	hdr = pad("DAY", PV_dayw)
+	for (k = 1; k <= 3; k++) hdr = hdr "  " lpad(toupper(SH[k]), PV_sw[k])
+	hdr = hdr "  " lpad("TOTAL", PV_totw)
+	print C_DIM hdr C_RESET
+	print C_DIM rep(RULE, TW) C_RESET
+
+	for (i = 1; i <= PV_nd; i++) {
+		day = PV_days[i]
+		line = pad(day, PV_dayw)
+		for (k = 1; k <= 3; k++) {
+			c = PV_cell[day, k]
+			if (c == 0) line = line "  " C_DIM lpad("0", PV_sw[k]) C_RESET
+			else line = line "  " lpad(c "", PV_sw[k])
+		}
+		line = line "  " lpad(PV_tot[day] "", PV_totw)
+		if (PV_barw > 0) line = line "  " bar(day, PV_cell, PV_tot[day], PV_peak, PV_barw)
+		print line
+	}
+}
+
+# Cells are shared out by largest remainder so the segments always sum to the
+# bar length, then a suite that scored none but did have fetches borrows one
+# cell from the widest segment: a 3% sliver still shows, as it does on the page.
+function bar(day, cell, total, peak, barw,    k, cells, want, floorv, rem, used, best, out, i, widestk) {
+	if (total <= 0) return ""
+	cells = int(total / peak * barw + 0.5)
+	if (cells < 1) cells = 1
+	used = 0
+	for (k = 1; k <= 3; k++) {
+		want[k] = cell[day, k]
+		floorv[k] = int(want[k] / total * cells)
+		rem[k] = want[k] / total * cells - floorv[k]
+		used += floorv[k]
+	}
+	while (used < cells) {
+		best = 0
+		for (k = 1; k <= 3; k++) if (best == 0 || rem[k] > rem[best]) best = k
+		floorv[best]++
+		rem[best] = -1
+		used++
+	}
+	for (k = 1; k <= 3; k++) {
+		if (want[k] == 0 || floorv[k] > 0) continue
+		widestk = 0
+		for (i = 1; i <= 3; i++) if (floorv[i] > 1 && (widestk == 0 || floorv[i] > floorv[widestk])) widestk = i
+		if (widestk == 0) continue
+		floorv[widestk]--
+		floorv[k]++
+	}
+	out = ""
+	for (k = 1; k <= 3; k++) if (floorv[k] > 0) out = out SC[k] rep(SG[k], floorv[k]) C_RESET
+	return out
+}
+
+function footer(    stamp, left) {
+	stamp = (LOCALSTAMP != "") ? LOCALSTAMP : utcStamp(val("generated"))
+	print ""
+	if (stamp == "") {
+		print C_DIM SRC C_RESET
+		return
+	}
+	left = "counted at the edge " stamp
+	if (length(left) + 4 + length(SRC) <= W)
+		print C_DIM left "  " SEP "  " SRC C_RESET
+	else {
+		print C_DIM left C_RESET
+		print C_DIM SRC C_RESET
+	}
+}
+
+function utcStamp(iso) {
+	if (iso !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]/) return ""
+	return substr(iso, 1, 10) " " substr(iso, 12, 8) " UTC"
+}
+'

@@ -5,9 +5,12 @@
 
 set -eu
 
+# shellcheck source=/dev/null
+. /etc/os-release
+
 printf '%s\n' """
     ___      ${USER:-$(id -un)}@$(cat /etc/hostname)
-   (.. |     os:     $(. /etc/os-release; echo "${PRETTY_NAME}")
+   (.. |     os:     ${PRETTY_NAME}
    (<> |     kernel: $(uname -r)
   / __  \    uptime: $(awk '{d=int($1/86400);h=int($1%86400/3600);m=int($1%3600/60);printf "%dd %dh %dm",d,h,m}' /proc/uptime)
  ( /  \ /|   pkgs:   $(dpkg --get-selections 2>/dev/null | grep -c '[[:space:]]install$' || echo "0")
